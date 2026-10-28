@@ -1,0 +1,120 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SubAgent {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String         @unique @db.VarChar(120)
+  description    String         @default("") @db.Text
+  invoke_url     String         @db.VarChar(2048)
+  enabled        Boolean        @default(true)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  modified_at    DateTime       @updatedAt @db.Timestamptz(6)
+  workflow_steps WorkflowStep[]
+
+  @@map("sub_agents")
+}
+
+model Workflow {
+  id               String         @id @default(uuid()) @db.Uuid
+  name             String         @db.VarChar(160)
+  description      String         @default("") @db.Text
+  total_sub_agents Int
+  enabled          Boolean        @default(true)
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  modified_at      DateTime       @updatedAt @db.Timestamptz(6)
+  steps            WorkflowStep[]
+  schedules        Schedule[]
+  runs             WorkflowRun[]
+
+  @@index([name])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id           String    @id @default(uuid()) @db.Uuid
+  workflow_id  String    @db.Uuid
+  sub_agent_id String    @db.Uuid
+  position     Int
+  payload      Json
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  workflow     Workflow  @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  sub_agent    SubAgent  @relation(fields: [sub_agent_id], references: [id])
+  step_runs    StepRun[]
+
+  @@unique([workflow_id, position])
+  @@index([workflow_id])
+  @@index([sub_agent_id])
+  @@map("workflow_steps")
+}
+
+model Schedule {
+  id                      String        @id @default(uuid()) @db.Uuid
+  workflow_id             String        @db.Uuid
+  schedule_type           String        @db.VarChar(16)
+  recurrence              String        @db.VarChar(16)
+  time_of_day             String?       @db.VarChar(5)
+  range_start             String?       @db.VarChar(5)
+  range_end               String?       @db.VarChar(5)
+  day_of_month            Int?
+  month                   Int?
+  run_if_missed           Boolean       @default(true)
+  misfire_grace_minutes   Int           @default(1440)
+  enabled                 Boolean       @default(true)
+  windows_task_name       String?       @db.VarChar(240)
+  registration_error      String?       @db.Text
+  created_at              DateTime      @default(now()) @db.Timestamptz(6)
+  modified_at             DateTime      @updatedAt @db.Timestamptz(6)
+  workflow                Workflow      @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  runs                    WorkflowRun[]
+
+  @@index([workflow_id])
+  @@map("schedules")
+}
+
+model WorkflowRun {
+  id             String     @id @default(uuid()) @db.Uuid
+  workflow_id    String     @db.Uuid
+  schedule_id    String?    @db.Uuid
+  occurrence_key String?    @db.VarChar(80)
+  status         String     @db.VarChar(20)
+  attempt_count  Int        @default(1)
+  scheduled_for  DateTime?  @db.Timestamptz(6)
+  started_at     DateTime   @default(now()) @db.Timestamptz(6)
+  finished_at    DateTime?  @db.Timestamptz(6)
+  error          String?    @db.Text
+  created_at     DateTime   @default(now()) @db.Timestamptz(6)
+  workflow       Workflow   @relation(fields: [workflow_id], references: [id])
+  schedule       Schedule?  @relation(fields: [schedule_id], references: [id], onDelete: SetNull)
+  step_runs      StepRun[]
+
+  @@unique([schedule_id, occurrence_key])
+  @@index([workflow_id])
+  @@index([schedule_id])
+  @@index([status])
+  @@map("workflow_runs")
+}
+
+model StepRun {
+  id                String       @id @default(uuid()) @db.Uuid
+  workflow_run_id   String       @db.Uuid
+  workflow_step_id  String       @db.Uuid
+  attempt_number    Int
+  status            String       @db.VarChar(20)
+  response           Json?
+  error              String?      @db.Text
+  started_at         DateTime     @default(now()) @db.Timestamptz(6)
+  finished_at        DateTime?    @db.Timestamptz(6)
+  workflow_run       WorkflowRun  @relation(fields: [workflow_run_id], references: [id], onDelete: Cascade)
+  workflow_step      WorkflowStep @relation(fields: [workflow_step_id], references: [id])
+
+  @@index([workflow_run_id])
+  @@map("step_runs")
+}

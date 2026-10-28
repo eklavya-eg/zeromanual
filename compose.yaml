@@ -1,0 +1,31 @@
+name: switch-platform
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-switch}
+      POSTGRES_USER: ${POSTGRES_USER:-switch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-switch-local-password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - switch_postgres_data:/var/lib/postgresql/data
+    networks:
+      - switch_backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  switch_postgres_data:
+    name: switch-postgres-data
+
+networks:
+  switch_backend:
+    name: switch-backend
+    driver: bridge
