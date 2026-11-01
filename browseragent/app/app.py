@@ -1,11 +1,14 @@
 import os
 from typing import Annotated
 
-from browser_use import Agent
+from browser_use import Agent, Browser
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from app.llm import LlmConfigurationError, LlmProvider, create_llm
+from browser_use.browser import BrowserProfile, BrowserSession
+
+
 
 app = FastAPI(
     title="Browser Agent",
@@ -42,7 +45,20 @@ async def invoke(payload: InvokePayload) -> InvokeResponse:
     except LlmConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    agent = Agent(task=payload.task, llm=llm)
+    browser = Browser(
+        executable_path=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        user_data_dir=r"D:\BroserUse\User Data",
+        profile_directory="Profile 1"
+    )
+    # browser_session = BrowserSession(
+    #     browser_profile=BrowserProfile(
+    #         cdp_url="http://localhost:9222",
+    #         is_local=True,
+    #         keep_alive=True
+    #     )
+    # )
+
+    agent = Agent(task=payload.task, llm=llm, browser=browser)
     try:
         history = await agent.run(max_steps=payload.max_steps)
     except Exception as exc:

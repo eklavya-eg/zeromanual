@@ -38,7 +38,7 @@ def create_llm(
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     selected_model = model or os.getenv(
-        "OPENROUTER_MODEL", "openai/gpt-4.1-mini"
+        "OPENROUTER_MODEL", "nvidia/nemotron-3.5-super-vl:free"
     )
     if not api_key:
         raise LlmConfigurationError("OPENROUTER_API_KEY is required")
