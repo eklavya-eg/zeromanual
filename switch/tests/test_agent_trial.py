@@ -30,10 +30,23 @@ def test_trial_invokes_registered_sub_agent(monkeypatch) -> None:
     )
     received: dict[str, Any] = {}
 
-    async def fake_invoke(url: str, payload: dict[str, Any]) -> dict[str, Any]:
-        received.update({"url": url, "payload": payload})
-        return {"title": "Example Domain"}
+    class FakeNotificationStore:
+        async def create_job(self, **kwargs) -> tuple[str, str]:
+            received["job"] = kwargs
+            return "job-123", "callback-secret"
 
+        async def remove_job(self, job_id: str) -> None:
+            received["removed"] = job_id
+
+    async def fake_invoke(
+        url: str,
+        payload: dict[str, Any],
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        received.update({"url": url, "payload": payload, "timeout": timeout_seconds})
+        return {"task_id": "job-123", "status": "accepted"}
+
+    monkeypatch.setattr(scheduled, "notification_store", FakeNotificationStore())
     monkeypatch.setattr(scheduled, "invoke_sub_agent", fake_invoke)
     result = asyncio.run(
         scheduled.invoke_sub_agent_trial(
@@ -43,11 +56,24 @@ def test_trial_invokes_registered_sub_agent(monkeypatch) -> None:
         )
     )
 
-    assert result.status == "succeeded"
-    assert result.result == {"title": "Example Domain"}
+    assert result.status == "queued"
+    assert result.task_id == "job-123"
     assert received == {
+        "job": {
+            "agent_id": "agent-1",
+            "agent_name": "Browser Agent",
+            "payload": {"task": "Read the title"},
+        },
         "url": "http://127.0.0.1:8001/invoke",
-        "payload": {"task": "Read the title"},
+        "payload": {
+            "task": "Read the title",
+            "_switch": {
+                "job_id": "job-123",
+                "webhook_url": "http://127.0.0.1:8000/api/notifications/webhook",
+                "callback_token": "callback-secret",
+            },
+        },
+        "timeout": 15,
     }
 
 

@@ -43,11 +43,30 @@ class SubAgentResponse(BaseModel):
 
 
 class SubAgentTrialResponse(BaseModel):
+    task_id: str
     agent_id: str
     agent_name: str
     status: str
-    duration_ms: int
-    result: dict[str, Any]
+
+
+class SubAgentCallback(BaseModel):
+    job_id: str
+    callback_token: str
+    status: Annotated[str, Field(pattern="^(completed|failed)$")]
+    response: dict[str, Any] | None = None
+    error: Annotated[str | None, Field(max_length=4_000)] = None
+
+
+class SubAgentNotification(BaseModel):
+    job_id: str
+    agent_id: str
+    agent_name: str
+    status: str
+    payload: dict[str, Any]
+    response: dict[str, Any] | None
+    error: str | None
+    created_at: datetime
+    completed_at: datetime
 
 
 class WorkflowStepCreate(BaseModel):
@@ -67,6 +86,13 @@ class WorkflowCreate(BaseModel):
     description: Annotated[str, Field(max_length=4_000)] = ""
     steps: Annotated[list[WorkflowStepCreate], Field(min_length=1)]
     enabled: bool = True
+
+
+class WorkflowUpdate(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=160)] | None = None
+    description: Annotated[str, Field(max_length=4_000)] | None = None
+    steps: Annotated[list[WorkflowStepCreate], Field(min_length=1)] | None = None
+    enabled: bool | None = None
 
 
 class WorkflowResponse(BaseModel):

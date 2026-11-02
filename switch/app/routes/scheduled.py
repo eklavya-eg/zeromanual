@@ -1,14 +1,16 @@
+import os
 from datetime import time
-from time import perf_counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from prisma import Prisma
+from prisma import Json, Prisma
 from prisma.errors import UniqueViolationError
 from prisma.models import Schedule, SubAgent, Workflow, WorkflowRun
+from redis.exceptions import RedisError
 
 from app.database import get_database
 from app.execution import WorkflowExecutionError, execute_workflow, invoke_sub_agent
+from app.notifications import notification_store
 from app.schedule_engine import due_occurrence
 from app.scheduler import reconcile_due_schedules
 from app.schemas import (
@@ -24,6 +26,7 @@ from app.schemas import (
     WorkflowCreate,
     WorkflowResponse,
     WorkflowStepResponse,
+    WorkflowUpdate,
 )
 from app.windows_scheduler import delete_windows_task, register_windows_task
 
@@ -156,9 +159,26 @@ async def update_sub_agent(
     return _sub_agent_response(sub_agent)
 
 
+@router.delete("/sub-agents/{sub_agent_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sub_agent(
+    sub_agent_id: str,
+    db: Prisma = Depends(get_database),
+) -> Response:
+    if await db.subagent.find_unique(where={"id": sub_agent_id}) is None:
+        raise HTTPException(status_code=404, detail="Sub-agent not found")
+    if await db.workflowstep.find_first(where={"sub_agent_id": sub_agent_id}) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Sub-agent is used by an existing workflow",
+        )
+    await db.subagent.delete(where={"id": sub_agent_id})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/sub-agents/{sub_agent_id}/invoke",
     response_model=SubAgentTrialResponse,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def invoke_sub_agent_trial(
     sub_agent_id: str,
@@ -171,24 +191,52 @@ async def invoke_sub_agent_trial(
     if not sub_agent.enabled:
         raise HTTPException(status_code=409, detail="Sub-agent is disabled")
 
-    started_at = perf_counter()
+    job_id: str | None = None
     try:
-        result = await invoke_sub_agent(sub_agent.invoke_url, payload)
+        job_id, callback_token = await notification_store.create_job(
+            agent_id=sub_agent.id,
+            agent_name=sub_agent.name,
+            payload=payload,
+        )
+        switch_base_url = os.getenv("SWITCH_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+        dispatch_payload = {
+            **payload,
+            "_switch": {
+                "job_id": job_id,
+                "webhook_url": f"{switch_base_url}/api/notifications/webhook",
+                "callback_token": callback_token,
+            },
+        }
+        result = await invoke_sub_agent(
+            sub_agent.invoke_url,
+            dispatch_payload,
+            timeout_seconds=15,
+        )
+        if result.get("task_id") != job_id or result.get("status") != "accepted":
+            raise RuntimeError("Sub-agent did not accept the asynchronous task")
+    except RedisError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Notification service unavailable",
+        ) from exc
     except Exception as exc:
+        if job_id is not None:
+            try:
+                await notification_store.remove_job(job_id)
+            except RedisError:
+                pass
         raise HTTPException(
             status_code=502,
             detail=f"Sub-agent invocation failed: {exc}",
         ) from exc
 
     return SubAgentTrialResponse(
+        task_id=job_id,
         agent_id=sub_agent.id,
         agent_name=sub_agent.name,
-        status="succeeded",
-        duration_ms=round((perf_counter() - started_at) * 1_000),
-        result=result,
+        status="queued",
     )
 
-# TODO: error
 @router.post("/workflows", response_model=WorkflowResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow(
     payload: WorkflowCreate,
@@ -220,7 +268,7 @@ async def create_workflow(
                     "workflow_id": workflow.id,
                     "sub_agent_id": step.sub_agent_id,
                     "position": position,
-                    "payload": step.payload,
+                    "payload": Json(step.payload),
                 }
                 for position, step in enumerate(payload.steps, start=1)
             ]
@@ -245,6 +293,98 @@ async def get_workflow(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return await _workflow_response(db, workflow)
+
+
+@router.patch("/workflows/{workflow_id}", response_model=WorkflowResponse)
+async def update_workflow(
+    workflow_id: str,
+    payload: WorkflowUpdate,
+    db: Prisma = Depends(get_database),
+) -> WorkflowResponse:
+    workflow = await db.workflow.find_unique(where={"id": workflow_id})
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    if payload.steps is not None:
+        requested_agent_ids = {step.sub_agent_id for step in payload.steps}
+        existing_agents = await db.subagent.find_many(
+            where={"id": {"in": list(requested_agent_ids)}}
+        )
+        missing = sorted(requested_agent_ids - {agent.id for agent in existing_agents})
+        if missing:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Unknown sub-agent IDs", "ids": missing},
+            )
+
+    changes = payload.model_dump(
+        exclude_unset=True,
+        exclude_none=True,
+        exclude={"steps"},
+    )
+    existing_steps = []
+    if payload.steps is not None:
+        changes["total_sub_agents"] = len(payload.steps)
+        existing_steps = await db.workflowstep.find_many(
+            where={"workflow_id": workflow_id},
+            order={"position": "asc"},
+        )
+
+    async with db.tx() as transaction:
+        if changes:
+            workflow = await transaction.workflow.update(
+                where={"id": workflow_id},
+                data=changes,
+            )
+        if payload.steps is not None:
+            for position, step in enumerate(payload.steps, start=1):
+                step_data = {
+                    "sub_agent_id": step.sub_agent_id,
+                    "position": position,
+                    "payload": Json(step.payload),
+                }
+                if position <= len(existing_steps):
+                    await transaction.workflowstep.update(
+                        where={"id": existing_steps[position - 1].id},
+                        data=step_data,
+                    )
+                else:
+                    await transaction.workflowstep.create(
+                        data={
+                            "workflow_id": workflow_id,
+                            **step_data,
+                        }
+                    )
+
+            removed_steps = existing_steps[len(payload.steps):]
+            if removed_steps:
+                removed_ids = [step.id for step in removed_steps]
+                await transaction.steprun.delete_many(
+                    where={"workflow_step_id": {"in": removed_ids}}
+                )
+                await transaction.workflowstep.delete_many(
+                    where={"id": {"in": removed_ids}}
+                )
+    return await _workflow_response(db, workflow)
+
+
+@router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_workflow(
+    workflow_id: str,
+    db: Prisma = Depends(get_database),
+) -> Response:
+    workflow = await db.workflow.find_unique(where={"id": workflow_id})
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    schedules = await db.schedule.find_many(where={"workflow_id": workflow_id})
+    for schedule in schedules:
+        await delete_windows_task(schedule.windows_task_name)
+
+    async with db.tx() as transaction:
+        await transaction.workflowrun.delete_many(where={"workflow_id": workflow_id})
+        await transaction.workflow.delete(where={"id": workflow_id})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def _save_registration(db: Prisma, schedule: Schedule) -> Schedule:

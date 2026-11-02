@@ -53,6 +53,10 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
     workflow = workflow_response.json()
     assert workflow["total_sub_agents"] == 2
     assert [step["position"] for step in workflow["steps"]] == [1, 2]
+    linked_agent_delete = client.delete(
+        f"/api/scheduled/sub-agents/{first_agent.json()['id']}"
+    )
+    assert linked_agent_delete.status_code == 409
 
     current_time = datetime.now().strftime("%H:%M")
     schedule_response = client.post(
@@ -73,7 +77,7 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
 
     reconcile_response = client.post("/api/scheduled/reconcile")
     assert reconcile_response.status_code == 200
-    triggered_run_id = reconcile_response.json()["triggered_run_ids"][0]
+    triggered_run_ids = reconcile_response.json()["triggered_run_ids"]
 
     run_url = (
         f"/api/scheduled/run/{workflow['id']}"
@@ -84,7 +88,7 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
     assert first_run.status_code == 200
     assert duplicate_run.status_code == 200
     assert first_run.json()["status"] == "succeeded"
-    assert first_run.json()["id"] == triggered_run_id
+    assert first_run.json()["id"] in triggered_run_ids
     assert duplicate_run.json()["id"] == first_run.json()["id"]
     assert [payload for _, payload in invocations] == [
         {"task": "Find matching jobs"},
@@ -94,6 +98,30 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
     steps = client.get(f"/api/scheduled/runs/{first_run.json()['id']}/steps")
     assert steps.status_code == 200
     assert [step["status"] for step in steps.json()] == ["succeeded", "succeeded"]
+
+    workflow_update = client.patch(
+        f"/api/scheduled/workflows/{workflow['id']}",
+        json={
+            "name": "updated job search",
+            "description": "Updated through the API",
+            "enabled": False,
+            "steps": [
+                {
+                    "sub_agent_id": first_agent.json()["id"],
+                    "payload": {"task": "Find remote jobs"},
+                }
+            ],
+        },
+    )
+    assert workflow_update.status_code == 200
+    assert workflow_update.json()["name"] == "updated job search"
+    assert workflow_update.json()["enabled"] is False
+    assert workflow_update.json()["total_sub_agents"] == 1
+    assert workflow_update.json()["steps"][0]["payload"] == {"task": "Find remote jobs"}
+
+    workflow_detail = client.get(f"/api/scheduled/workflows/{workflow['id']}")
+    assert workflow_detail.status_code == 200
+    assert workflow_detail.json()["description"] == "Updated through the API"
 
     update_response = client.patch(
         f"/api/scheduled/schedules/{schedule['id']}",
@@ -114,3 +142,21 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
     )
     assert schedules.status_code == 200
     assert len(schedules.json()) == 1
+
+    delete_response = client.delete(f"/api/scheduled/workflows/{workflow['id']}")
+    assert delete_response.status_code == 204
+    assert client.get(f"/api/scheduled/workflows/{workflow['id']}").status_code == 404
+    assert client.get(
+        "/api/scheduled/schedules",
+        params={"workflow_id": workflow["id"]},
+    ).json() == []
+    assert client.get(
+        "/api/scheduled/runs",
+        params={"workflow_id": workflow["id"]},
+    ).json() == []
+    assert client.delete(
+        f"/api/scheduled/sub-agents/{first_agent.json()['id']}"
+    ).status_code == 204
+    assert client.delete(
+        f"/api/scheduled/sub-agents/{second_agent.json()['id']}"
+    ).status_code == 204

@@ -75,12 +75,27 @@ export type RunStep = {
 };
 
 export type AgentTrialResponse = {
+  task_id: string;
   agent_id: string;
   agent_name: string;
   status: string;
-  duration_ms: number;
-  result: Record<string, unknown>;
 };
+
+export type SubAgentNotification = {
+  job_id: string;
+  agent_id: string;
+  agent_name: string;
+  status: string;
+  payload: Record<string, unknown>;
+  response: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string;
+};
+
+export type NotificationSocketMessage =
+  | { type: "ping" }
+  | { type: "notification"; data: SubAgentNotification };
 
 export type SubAgentInput = {
   name: string;

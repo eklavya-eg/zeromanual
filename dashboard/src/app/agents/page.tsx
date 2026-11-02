@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Braces, CheckCircle2, Clock3, Copy, ExternalLink, Pencil, Play, Plus, Server, Timer, Waypoints } from "lucide-react";
+import { Bell, Bot, Braces, CheckCircle2, Clock3, Copy, ExternalLink, Pencil, Play, Plus, Server, Trash2, Waypoints } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Field, inputClass, textareaClass } from "@/components/form-fields";
@@ -32,6 +33,11 @@ export default function AgentsPage() {
       setEditing(null);
       setForm(emptyForm);
     },
+  });
+
+  const deleteAgent = useMutation({
+    mutationFn: api.agents.remove,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents"] }),
   });
 
   const invokeAgent = useMutation({
@@ -77,6 +83,7 @@ export default function AgentsPage() {
     <div>
       <PageHeader eyebrow="Service discovery" title="Sub-agents" description="Register detachable services once, then reuse them across every workflow stack." action={<AddButton onClick={beginCreate}>Register agent</AddButton>} />
       <QueryAlert show={agentsQuery.isError} />
+      {deleteAgent.isError && <p className="mb-4 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">{deleteAgent.error.message}</p>}
 
       <div className="mb-5 grid gap-4 sm:grid-cols-3">
         <Card className="flex items-center gap-4 p-5"><div className="grid size-11 place-items-center rounded-2xl bg-blue-50 text-[var(--blue)]"><Server className="size-5" /></div><div><p className="text-2xl font-semibold tracking-tight">{agents.length}</p><p className="text-xs text-[var(--muted)]">Registered services</p></div></Card>
@@ -90,7 +97,7 @@ export default function AgentsPage() {
             <Card key={agent.id} className="group overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(30,31,45,.09)]">
               <div className={`h-1.5 ${index % 3 === 0 ? "bg-[#7088f5]" : index % 3 === 1 ? "bg-[#b187ec]" : "bg-[#efad83]"}`} />
               <div className="p-5">
-                <div className="flex items-start justify-between gap-3"><div className="grid size-12 place-items-center rounded-[18px] bg-gradient-to-br from-[#edf0ff] to-[#fafbff] text-[var(--blue)]"><Bot className="size-5" /></div><div className="flex gap-2"><StatusBadge tone={agent.enabled ? "success" : "neutral"}>{agent.enabled ? "Enabled" : "Disabled"}</StatusBadge><button onClick={() => beginEdit(agent)} className="grid size-8 place-items-center rounded-xl border border-black/[0.07] bg-white text-[var(--muted)] transition hover:text-[var(--ink)]" aria-label={`Edit ${agent.name}`}><Pencil className="size-3.5" /></button></div></div>
+                <div className="flex items-start justify-between gap-3"><div className="grid size-12 place-items-center rounded-[18px] bg-gradient-to-br from-[#edf0ff] to-[#fafbff] text-[var(--blue)]"><Bot className="size-5" /></div><div className="flex gap-2"><StatusBadge tone={agent.enabled ? "success" : "neutral"}>{agent.enabled ? "Enabled" : "Disabled"}</StatusBadge><button onClick={() => beginEdit(agent)} className="grid size-8 place-items-center rounded-xl border border-black/[0.07] bg-white text-[var(--muted)] transition hover:text-[var(--ink)]" aria-label={`Edit ${agent.name}`}><Pencil className="size-3.5" /></button><button onClick={() => { if (window.confirm(`Delete "${agent.name}"?`)) deleteAgent.mutate(agent.id); }} className="grid size-8 place-items-center rounded-xl border border-red-100 bg-red-50 text-red-500 transition hover:bg-red-100" aria-label={`Delete ${agent.name}`}><Trash2 className="size-3.5" /></button></div></div>
                 <h2 className="mt-5 text-lg font-semibold tracking-[-0.025em]">{agent.name}</h2>
                 <p className="mt-2 min-h-10 text-sm leading-5 text-[var(--muted)]">{agent.description || "No description provided."}</p>
                 <Button className="mt-4 w-full rounded-xl text-xs" onClick={() => beginTrial(agent)} disabled={!agent.enabled}><Play className="size-3.5" />Try a payload</Button>
@@ -129,14 +136,14 @@ export default function AgentsPage() {
             <div className="mt-3 rounded-2xl bg-black/[0.025] px-4 py-3 font-mono text-[10px] text-[var(--muted)]">POST {trialAgent?.invoke_url}</div>
           </section>
           <section>
-            <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Agent response</p><p className="mt-1 text-xs text-[var(--muted)]">Status, latency, and returned JSON</p></div>{invokeAgent.data && <StatusBadge tone="success">{invokeAgent.data.status}</StatusBadge>}</div>
+            <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Async task</p><p className="mt-1 text-xs text-[var(--muted)]">Switch returns immediately; the result arrives by webhook</p></div>{invokeAgent.data && <StatusBadge tone="info">{invokeAgent.data.status}</StatusBadge>}</div>
             <div className="min-h-[340px] rounded-[22px] border border-black/[0.07] bg-white p-4">
-              {invokeAgent.isPending ? <div className="grid min-h-[300px] place-items-center text-center"><div><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-blue-100 border-t-[var(--blue)]" /><p className="mt-4 text-sm font-bold">Agent is working</p><p className="mt-1 text-xs text-[var(--muted)]">Browser tasks can take a few minutes.</p></div></div> : invokeAgent.data ? <><div className="mb-3 flex items-center gap-2 text-xs text-[var(--muted)]"><Timer className="size-3.5" />Completed in {invokeAgent.data.duration_ms} ms</div><pre className="scrollbar-thin max-h-[290px] overflow-auto rounded-2xl bg-[#f6f6f4] p-4 text-[11px] leading-5 text-[#3d4050]">{JSON.stringify(invokeAgent.data.result, null, 2)}</pre></> : <div className="grid min-h-[300px] place-items-center text-center"><div><div className="mx-auto grid size-11 place-items-center rounded-2xl bg-blue-50 text-[var(--blue)]"><Play className="size-5" /></div><p className="mt-4 text-sm font-bold">Ready for a trial</p><p className="mt-1 max-w-xs text-xs leading-5 text-[var(--muted)]">Review the payload, then invoke the agent to inspect its raw response.</p></div></div>}
+              {invokeAgent.isPending ? <div className="grid min-h-[300px] place-items-center text-center"><div><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-blue-100 border-t-[var(--blue)]" /><p className="mt-4 text-sm font-bold">Queuing task</p><p className="mt-1 text-xs text-[var(--muted)]">This should only take a moment.</p></div></div> : invokeAgent.data ? <div className="grid min-h-[300px] place-items-center text-center"><div className="max-w-md"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-[var(--blue)]"><Bell className="size-5" /></div><p className="mt-4 text-sm font-bold">Task queued</p><p className="mt-1 text-xs leading-5 text-[var(--muted)]">The browser agent is running in the background. Its payload and response will appear on the Notifications page.</p><div className="mt-4 rounded-xl bg-black/[0.035] px-3 py-2 font-mono text-[10px] text-[var(--muted)]">{invokeAgent.data.task_id}</div><Link href="/notifications" onClick={() => setTrialAgent(null)} className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--blue)] px-4 text-xs font-semibold text-white"><Bell className="size-3.5" />View notifications</Link></div></div> : <div className="grid min-h-[300px] place-items-center text-center"><div><div className="mx-auto grid size-11 place-items-center rounded-2xl bg-blue-50 text-[var(--blue)]"><Play className="size-5" /></div><p className="mt-4 text-sm font-bold">Ready for a trial</p><p className="mt-1 max-w-xs text-xs leading-5 text-[var(--muted)]">Review the payload, then queue the agent task.</p></div></div>}
             </div>
             {trialError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{trialError}</p>}
           </section>
         </div>
-        <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setTrialAgent(null)}>Close</Button>{invokeAgent.data && <Button variant="ghost" onClick={async () => { await navigator.clipboard.writeText(JSON.stringify(invokeAgent.data?.result, null, 2)); setCopied(true); setTimeout(() => setCopied(false), 1500); }}><Copy className="size-4" />{copied ? "Copied" : "Copy result"}</Button>}<Button onClick={() => invokeAgent.mutate()} disabled={invokeAgent.isPending}><Play className="size-4" />{invokeAgent.isPending ? "Invoking…" : "Invoke agent"}</Button></div>
+        <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setTrialAgent(null)}>Close</Button>{invokeAgent.data && <Button variant="ghost" onClick={async () => { await navigator.clipboard.writeText(invokeAgent.data?.task_id ?? ""); setCopied(true); setTimeout(() => setCopied(false), 1500); }}><Copy className="size-4" />{copied ? "Copied" : "Copy task ID"}</Button>}<Button onClick={() => invokeAgent.mutate()} disabled={invokeAgent.isPending}><Play className="size-4" />{invokeAgent.isPending ? "Queuing…" : "Queue task"}</Button></div>
       </Modal>
     </div>
   );

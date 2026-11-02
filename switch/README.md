@@ -9,7 +9,7 @@ PostgreSQL runs from the repository-level Docker Compose stack with a persistent
 ```powershell
 Copy-Item .env.example .env
 cd ..
-docker compose --env-file switch/.env up -d postgres
+docker compose --env-file switch/.env up -d postgres redis
 cd switch
 uv run prisma generate
 uv run prisma migrate deploy
@@ -28,6 +28,9 @@ The API listens on `http://127.0.0.1:8000`; OpenAPI is available at `/docs`.
 - `SCHEDULER_REGISTER_WINDOWS_TASKS` — set `false` to use only the in-process monitor.
 - `SCHEDULER_POLL_SECONDS` — due-schedule reconciliation interval.
 - `DASHBOARD_ORIGINS` — comma-separated browser origins allowed by CORS.
+- `REDIS_URL` — ephemeral task correlation, notification history, and Pub/Sub connection.
+- `SUB_AGENT_JOB_TTL_SECONDS` — expiry for manual jobs and notification history.
+- `SUB_AGENT_NOTIFICATION_LIMIT` — maximum recent manual results retained in Redis.
 
 All schedule times use the Windows/server local timezone and minute precision. Ranges must start and end on the same day.
 
@@ -105,6 +108,10 @@ Content-Type: application/json
 
 For yearly recurrence, provide both `month` and `day_of_month`. Add multiple schedule rows to give one workflow multiple times or ranges. Modify a schedule with `PATCH /api/scheduled/schedules/{schedule_id}`.
 
+## Manual invocation behavior
+
+Manual invocations are not written to PostgreSQL. Switch creates an expiring Redis job, adds a protected `_switch` callback envelope to the payload, and returns `202 Accepted` with a task ID. The sub-agent runs in the background and posts its result to the webhook. Switch retains a bounded, expiring notification list in Redis and publishes the result to connected dashboard WebSockets.
+
 ## Execution behavior
 
 - A Windows task is registered for the start of every enabled schedule.
@@ -117,9 +124,13 @@ For yearly recurrence, provide both `month` and `day_of_month`. Add multiple sch
 
 ## Main endpoints
 
-- `POST/GET/PATCH /api/scheduled/sub-agents`
-- `POST /api/scheduled/sub-agents/{sub_agent_id}/invoke` — trial a payload through the registered service.
+- `POST/GET/PATCH/DELETE /api/scheduled/sub-agents`
+- `POST /api/scheduled/sub-agents/{sub_agent_id}/invoke` — queue a manual task and return its task ID.
+- `POST /api/notifications/webhook` — receive a completed manual task from a sub-agent.
+- `GET /api/notifications` — read recent ephemeral manual-task notifications.
+- `WS /api/notifications/ws` — stream completed manual tasks to the dashboard.
 - `POST/GET /api/scheduled/workflows`
+- `GET/PATCH/DELETE /api/scheduled/workflows/{workflow_id}`
 - `POST/GET/PATCH/DELETE /api/scheduled/schedules`
 - `POST /api/scheduled/run/{workflow_id}`
 - `GET /api/scheduled/runs`

@@ -43,6 +43,8 @@ Invoke-RestMethod -Method Post `
   -Body '{"task":"Open example.com and return the page title","max_steps":10,"provider":"openrouter","model":"anthropic/claude-sonnet-4"}'
 ```
 
+Switch manual invocations include a reserved `_switch` callback envelope. In that mode, `/invoke` immediately returns an accepted task ID, executes the browser task in the background, and posts the final response to the supplied Switch webhook. Regular workflow requests without `_switch` keep the synchronous response contract.
+
 Other endpoints:
 
 - `GET /health`

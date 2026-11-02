@@ -7,6 +7,8 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import connect_database, disconnect_database
+from app.notifications import notification_store
+from app.routes.notifications import router as notifications_router
 from app.routes.scheduled import router as scheduled_router
 from app.scheduler import schedule_monitor
 
@@ -21,6 +23,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     finally:
         stop_event.set()
         await monitor_task
+        await notification_store.close()
         await disconnect_database()
 
 
@@ -50,4 +53,5 @@ async def api_root() -> dict[str, str]:
 
 
 api_router.include_router(scheduled_router)
+api_router.include_router(notifications_router)
 app.include_router(api_router)

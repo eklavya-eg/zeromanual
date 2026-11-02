@@ -5,6 +5,7 @@ import type {
   ScheduleInput,
   SubAgent,
   SubAgentInput,
+  SubAgentNotification,
   Workflow,
   WorkflowInput,
   WorkflowRun,
@@ -25,8 +26,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${scheduledUrl}${path}`, {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  baseUrl = scheduledUrl,
+): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -65,6 +70,8 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(input),
       }),
+    remove: (id: string) =>
+      request<void>(`/sub-agents/${id}`, { method: "DELETE" }),
     invoke: (id: string, payload: Record<string, unknown>) =>
       request<AgentTrialResponse>(`/sub-agents/${id}/invoke`, {
         method: "POST",
@@ -73,11 +80,19 @@ export const api = {
   },
   workflows: {
     list: () => request<Workflow[]>("/workflows"),
+    get: (id: string) => request<Workflow>(`/workflows/${id}`),
     create: (input: WorkflowInput) =>
       request<Workflow>("/workflows", {
         method: "POST",
         body: JSON.stringify(input),
       }),
+    update: (id: string, input: Partial<WorkflowInput>) =>
+      request<Workflow>(`/workflows/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    remove: (id: string) =>
+      request<void>(`/workflows/${id}`, { method: "DELETE" }),
     run: (id: string) =>
       request<WorkflowRun>(`/run/${id}`, { method: "POST" }),
   },
@@ -110,4 +125,18 @@ export const api = {
       ),
     steps: (id: string) => request<RunStep[]>(`/runs/${id}/steps`),
   },
+  notifications: {
+    list: () =>
+      request<SubAgentNotification[]>("", undefined, `${API_BASE_URL}/notifications`),
+  },
 };
+
+export function notificationSocketUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SWITCH_WS_URL;
+  if (configured) return configured;
+
+  const apiUrl = new URL(API_BASE_URL, window.location.origin);
+  apiUrl.protocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+  apiUrl.pathname = `${apiUrl.pathname.replace(/\/$/, "")}/notifications/ws`;
+  return apiUrl.toString();
+}

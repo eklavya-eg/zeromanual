@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Bell,
   Bot,
   CalendarClock,
   ChartNoAxesCombined,
@@ -26,6 +27,7 @@ const navigation = [
   { href: "/schedules", label: "Schedules", icon: CalendarClock },
   { href: "/agents", label: "Sub-agents", icon: Bot },
   { href: "/runs", label: "Runs", icon: Activity },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/usage", label: "Usage", icon: ChartNoAxesCombined },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -145,7 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-[22px] border border-black/[0.07] bg-white/90 p-2 shadow-[0_16px_50px_rgba(25,25,35,.18)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
-        {navigation.slice(0, 5).map((item) => {
+        {navigation.slice(0, 6).map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
             <Link key={item.href} href={item.href} aria-label={item.label} className={cn("grid size-11 place-items-center rounded-2xl text-[var(--muted)]", active && "bg-[var(--blue)] text-white")}>

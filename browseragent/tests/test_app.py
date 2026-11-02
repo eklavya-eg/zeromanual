@@ -24,7 +24,7 @@ class FakeAgent:
     last_max_steps: int | None = None
     closed = False
 
-    def __init__(self, task: str, llm: object) -> None:
+    def __init__(self, task: str, llm: object, browser: object) -> None:
         FakeAgent.last_task = task
 
     async def run(self, max_steps: int) -> FakeHistory:
@@ -72,6 +72,31 @@ def test_invoke_runs_browser_agent(monkeypatch) -> None:
     assert FakeAgent.last_task == "Read the example page"
     assert FakeAgent.last_max_steps == 12
     assert FakeAgent.closed is True
+
+
+def test_invoke_accepts_switch_callback(monkeypatch) -> None:
+    accepted_jobs: list[str] = []
+
+    async def fake_execute_and_notify(payload) -> None:
+        accepted_jobs.append(payload.switch_callback.job_id)
+
+    monkeypatch.setattr(app_module, "execute_and_notify", fake_execute_and_notify)
+
+    response = client.post(
+        "/invoke",
+        json={
+            "task": "Read the example page",
+            "_switch": {
+                "job_id": "job-123",
+                "webhook_url": "http://127.0.0.1:8000/api/notifications/webhook",
+                "callback_token": "secret",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"task_id": "job-123", "status": "accepted"}
+    assert accepted_jobs == ["job-123"]
 
 
 def test_invoke_rejects_empty_task() -> None:

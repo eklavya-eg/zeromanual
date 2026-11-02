@@ -1,7 +1,7 @@
 from typing import Any
 
 import httpx
-from prisma import Prisma
+from prisma import Json, Prisma
 from prisma.errors import UniqueViolationError
 from prisma.models import WorkflowRun
 
@@ -13,8 +13,12 @@ class WorkflowExecutionError(RuntimeError):
     pass
 
 
-async def invoke_sub_agent(url: str, payload: dict[str, Any]) -> dict[str, Any]:
-    async with httpx.AsyncClient(timeout=300) as client:
+async def invoke_sub_agent(
+    url: str,
+    payload: dict[str, Any],
+    timeout_seconds: float = 300,
+) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         response = await client.post(url, json=payload)
         response.raise_for_status()
         try:
@@ -120,7 +124,7 @@ async def execute_workflow(
                     where={"id": step_run.id},
                     data={
                         "status": "succeeded",
-                        "response": response,
+                        "response": Json(response),
                         "finished_at": utc_now(),
                     },
                 )
