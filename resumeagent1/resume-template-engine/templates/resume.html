@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ resume.name }} - Resume</title>
+  <style>{{ css }}</style>
+</head>
+<body>
+  <main class="resume">
+    <header class="header">
+      <h1>{{ resume.name }}</h1>
+      <div class="contact">
+        {% set links = [] %}
+        {% if resume.contact.email %}<span><a href="mailto:{{ resume.contact.email }}">{{ resume.contact.email }}</a></span>{% endif %}
+        {% if resume.contact.phone %}<span><a href="tel:{{ resume.contact.phone }}">{{ resume.contact.phone }}</a></span>{% endif %}
+        {% if resume.contact.linkedin %}<span><a href="https://{{ resume.contact.linkedin }}">{{ resume.contact.linkedin }}</a></span>{% endif %}
+        {% if resume.contact.github %}<span><a href="https://{{ resume.contact.github }}">{{ resume.contact.github }}</a></span>{% endif %}
+        {% if resume.contact.website %}<span><a href="https://{{ resume.contact.website }}">{{ resume.contact.website }}</a></span>{% endif %}
+        {% if resume.contact.location %}<span>{{ resume.contact.location }}</span>{% endif %}
+      </div>
+      {% if resume.headline %}<p class="headline">{{ resume.headline }}</p>{% endif %}
+      {% if resume.summary %}<p class="summary">{{ resume.summary }}</p>{% endif %}
+    </header>
+
+    {% if resume.skills %}
+    <section class="section">
+      <h2>SKILLS</h2>
+      <div class="section-body skills">
+        {% for group in resume.skills %}
+        <p><strong>{{ group.label }}:</strong> {{ group.items | join(", ") }}</p>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if resume.experience %}
+    <section class="section">
+      <h2>WORK EXPERIENCE</h2>
+      <div class="section-body">
+        {% for job in resume.experience %}
+        <article class="entry">
+          <div class="entry-top"><strong>{{ job.role }}</strong><span>{{ job.dates }}</span></div>
+          <div class="entry-sub"><span class="primary">{{ job.company }}</span><span>{{ job.location }}</span></div>
+          {% if job.client_or_project %}<p class="project-label">{{ job.client_or_project }}</p>{% endif %}
+          {% if job.bullets %}<ul>{% for bullet in job.bullets %}<li>{{ bullet }}</li>{% endfor %}</ul>{% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if resume.projects %}
+    <section class="section">
+      <h2>PROJECTS</h2>
+      <div class="section-body">
+        {% for project in resume.projects %}
+        <article class="entry">
+          <div class="entry-top"><strong>{{ project.name }}</strong><span>{{ project.dates }}</span></div>
+          {% if project.bullets %}<ul>{% for bullet in project.bullets %}<li>{{ bullet }}</li>{% endfor %}</ul>{% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if resume.education %}
+    <section class="section education-section">
+      <h2>EDUCATION</h2>
+      <div class="section-body">
+        {% for item in resume.education %}
+        <article class="entry education-entry">
+          <div class="entry-top"><strong>{{ item.qualification }}</strong><span>{{ item.dates }}</span></div>
+          <div class="entry-sub"><span>{{ item.institution }}</span></div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>
