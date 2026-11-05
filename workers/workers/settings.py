@@ -56,7 +56,7 @@ def load_settings() -> Settings:
     model = (
         os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
         if provider == "openai"
-        else os.getenv("OPENROUTER_MODEL", "openai/gpt-4.1-mini")
+        else os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-super-vl:free")
     )
     return Settings(
         database_url=os.environ["DATABASE_URL"],

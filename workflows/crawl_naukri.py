@@ -1,10 +1,14 @@
 import uuid
+from uuid import UUID
 import httpx
 import time
-from utils.retry import retry_call
 from typing import Any, Literal
 from pathlib import Path
 from pydantic import BaseModel, Field, HttpUrl, field_validator
+
+from utils.retry import retry_call
+from utils.llm import StructuredLLM
+from workers.workers.settings import load_settings
 
 class RetryPolicy(BaseModel):
     strategy: Literal["fixed", "exponential"] = "exponential"
@@ -12,28 +16,68 @@ class RetryPolicy(BaseModel):
     initial_delay_seconds: float = Field(default=2, ge=0, le=300)
     max_delay_seconds: float = Field(default=30, ge=0, le=900)
 
-class JobApplicationPayload(BaseModel):
-    job_url: HttpUrl
-    job_title: str = Field(min_length=1, max_length=500)
-    company_name: str = Field(min_length=1, max_length=500)
+class CrawlNaukriPayload(BaseModel):
+    naukri_url: HttpUrl = "https://www.naukri.com/mnjuser/recommendedjobs"
+    bredcrumb_visits: list = Field(default=[
+        "Applies",
+        "Handpicked for you",
+        "Profile",
+        "Preferences",
+        "You might like"
+    ], min_length=1, max_length=500)
     retry: RetryPolicy = Field(default_factory=RetryPolicy)
-    profile_path: str | None = None
-    resume_path: str | None = None
     max_browser_steps: int = Field(default=100, ge=1, le=500)
 
-    @field_validator("job_title", "company_name", mode="before")
-    @classmethod
-    def strip_job_metadata(cls, value: Any) -> Any:
-        return value.strip() if isinstance(value, str) else value
+class CrawledJobData(BaseModel):
+    company_name: str
+    job_title: str
+    job_url: HttpUrl
+    package: str  # Pay in INR, or "NA" if not available
 
+class CrawledJobsResponse(BaseModel):
+    jobs: list[CrawledJobData]
 
 class CrawlNaukri:
     def __init__(self, config):
         self.config = config
+        self.naukri_url: HttpUrl = "https://www.naukri.com/mnjuser/recommendedjobs"
+        self.bredcrumb_visits: list = Field(default=[
+            "Applies",
+            "Handpicked for you",
+            "Profile",
+            "Preferences",
+            "You might like"
+        ], min_length=1, max_length=500)
+        self.retry: RetryPolicy = Field(default_factory=RetryPolicy)
+        self.max_browser_steps: int = Field(default=100, ge=1, le=500)
+        self.settings = load_settings()
+        self.llm = StructuredLLM(provider=self.settings.llm_provider, model=self.settings.llm_model)
 
     def run(self):
         # Implement the crawling logic here
         print("Crawling Naukri with config:", self.config)
+        uuid_str = str(uuid.uuid4())
+        result = self.invoke_browser_agent(
+            task=f"open {self.naukri_url} and scroll, get and return company name, job title, job url, and package (pay in INR if not available directly just return NA) in json format",
+            session_id=uuid_str,
+        )
+        results = []
+        for item in self.bredcrumb_visits:
+            result_ = self.invoke_browser_agent(
+                task=f"navigate to {item} from breadcrumb and scroll, get and return company name, job title, job url, and package (pay in INR if not available directly just return NA) in json format",
+                session_id=uuid_str,
+            )
+            results.append(result_)
+        results = [result] + results
+        response = self.llm.generate(
+            system_prompt="Extract the company name, job title, job url, and package (pay in INR if not available directly just return NA) from the following data and return it in a structured format.",
+            prompt=f"{results}",
+            schema=CrawledJobsResponse
+        )
+        jobs = response.jobs
+        for job in jobs:
+            pass
+        return
 
 
     def invoke_browser_agent(
@@ -41,7 +85,6 @@ class CrawlNaukri:
         *,
         task: str,
         session_id: str,
-        resume_path: Path | None = None,
     ) -> dict[str, Any]:
         with httpx.Client(timeout=600) as client:
             def request(method: str, url: str, **kwargs: Any) -> dict[str, Any]:
@@ -74,9 +117,8 @@ class CrawlNaukri:
                 self.settings.browser_agent_url,
                 json={
                     "task": task,
-                    "max_steps": payload.max_browser_steps,
+                    "max_steps": self.max_browser_steps,
                     "id": session_id,
-                    "available_file_paths": [str(resume_path)] if resume_path is not None else [],
                 },
             )
             if value.get("status") in {"accepted", "queued"}:
