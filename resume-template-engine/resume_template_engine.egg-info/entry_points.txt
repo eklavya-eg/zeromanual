@@ -1,0 +1,2 @@
+[console_scripts]
+resume-render = resume_engine:main

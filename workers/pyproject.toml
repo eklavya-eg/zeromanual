@@ -1,0 +1,27 @@
+[project]
+name = "workers"
+version = "0.1.0"
+description = "Celery workers for Eye application automation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "celery[redis]>=5.5.3",
+    "httpx>=0.28.1",
+    "openai>=3.42.1",
+    "prisma>=0.15.0",
+    "pydantic>=2.14.1",
+    "python-dotenv>=1.2.4",
+    "pyyaml>=6.0.3",
+    "resume-template-engine",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.uv.sources]
+resume-template-engine = { path = "../resume-template-engine", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

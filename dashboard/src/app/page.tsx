@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowUpRight, Bot, CalendarClock, CheckCircle2, CirclePlay, GitBranch, Radar, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
+import { Activity, ArrowUpRight, Bot, CalendarClock, CheckCircle2, CirclePlay, GitBranch, Radar, RotateCcw, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -47,13 +47,13 @@ export default function OverviewPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Agent operations" title="Good evening, Eklavya" description="Everything scheduled, running, and waiting across your job-switch agent stack." action={<Button variant="ghost" onClick={() => reconcile.mutate()} disabled={reconcile.isPending}><RotateCcw className={`size-4 ${reconcile.isPending ? "animate-spin" : ""}`} />Reconcile now</Button>} />
+      <PageHeader eyebrow="Eye control plane" title="Operational overview" description="Observe health, execution, and automation across every connected application from one place." action={<Button variant="ghost" onClick={() => reconcile.mutate()} disabled={reconcile.isPending}><RotateCcw className={`size-4 ${reconcile.isPending ? "animate-spin" : ""}`} />Reconcile now</Button>} />
       <QueryAlert show={hasError} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Active workflows" value={workflows.filter((item) => item.enabled).length} detail={`${workflows.length} workflows configured`} icon={<GitBranch className="size-5" />} />
         <MetricCard label="Enabled schedules" value={schedules.filter((item) => item.enabled).length} detail="Across exact times and ranges" icon={<CalendarClock className="size-5" />} accent="violet" />
-        <MetricCard label="Available agents" value={agents.filter((item) => item.enabled).length} detail={`${agents.length} services registered`} icon={<Bot className="size-5" />} accent="peach" />
+        <MetricCard label="Connected services" value={agents.filter((item) => item.enabled).length} detail={`${agents.length} applications under control`} icon={<Bot className="size-5" />} accent="peach" />
         <MetricCard label="Success rate" value={`${successRate}%`} detail={`${failed} failed run${failed === 1 ? "" : "s"} recorded`} icon={<CheckCircle2 className="size-5" />} accent="mint" />
       </div>
 
@@ -77,7 +77,7 @@ export default function OverviewPage() {
           {runs.length ? <div className="divide-y divide-black/[0.05]">{runs.slice(0, 5).map((run) => { const workflow = workflows.find((item) => item.id === run.workflow_id); return <Link href={`/runs/${run.id}`} key={run.id} className="flex items-center gap-4 px-6 py-4 transition hover:bg-black/[0.02]"><div className="grid size-9 place-items-center rounded-xl bg-black/[0.035]"><Activity className="size-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{workflow?.name ?? "Workflow run"}</p><p className="mt-1 text-xs text-[var(--muted)]">{formatDateTime(run.started_at)}</p></div><StatusBadge tone={runTone(run.status)}>{run.status}</StatusBadge></Link>; })}</div> : <EmptyState icon={<Radar className="size-5" />} title="No run activity" description="Run a workflow manually or wait for a schedule to trigger." />}
         </Card>
 
-        <Card className="relative overflow-hidden p-6"><div className="absolute -right-16 -top-16 size-48 rounded-full bg-gradient-to-br from-blue-300/40 to-violet-300/10 blur-2xl" /><div className="relative"><div className="grid size-11 place-items-center rounded-2xl bg-[var(--ink)] text-white"><Sparkles className="size-5" /></div><h2 className="mt-5 text-xl font-semibold tracking-[-0.03em]">Build your next automation</h2><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">Stack your browser, discovery, matching, and notification agents into one repeatable workflow.</p><div className="mt-6 flex flex-wrap gap-2"><Link href="/workflows?new=true" className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[var(--blue)] px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/20"><CirclePlay className="size-4" />New workflow</Link><Link href="/agents" className="inline-flex h-11 items-center gap-2 rounded-2xl border border-black/[0.08] bg-white px-4 text-sm font-semibold"><Bot className="size-4" />Add agent</Link></div><div className="mt-7 flex items-center gap-2 text-xs text-[var(--muted)]">{failed > 0 ? <TriangleAlert className="size-4 text-amber-500" /> : <CheckCircle2 className="size-4 text-emerald-500" />}{failed > 0 ? `${failed} runs need attention` : "No unresolved run failures"}</div></div></Card>
+        <Card className="relative overflow-hidden p-6"><div className="absolute -right-16 -top-16 size-48 rounded-full bg-gradient-to-br from-blue-300/40 to-violet-300/10 blur-2xl" /><div className="relative"><div className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-[#637df7] to-[#7059da] text-white shadow-lg shadow-blue-500/20"><Radar className="size-5" /></div><h2 className="mt-5 text-xl font-semibold tracking-[-0.03em]">Extend your control plane</h2><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">Stack your browser, discovery, matching, and notification agents into one repeatable workflow.</p><div className="mt-6 flex flex-wrap gap-2"><Link href="/workflows?new=true" className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[var(--blue)] px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/20"><CirclePlay className="size-4" />New workflow</Link><Link href="/agents" className="inline-flex h-11 items-center gap-2 rounded-2xl border border-black/[0.08] bg-white px-4 text-sm font-semibold"><Bot className="size-4" />Add agent</Link></div><div className="mt-7 flex items-center gap-2 text-xs text-[var(--muted)]">{failed > 0 ? <TriangleAlert className="size-4 text-amber-500" /> : <CheckCircle2 className="size-4 text-emerald-500" />}{failed > 0 ? `${failed} runs need attention` : "No unresolved run failures"}</div></div></Card>
       </div>
     </div>
   );

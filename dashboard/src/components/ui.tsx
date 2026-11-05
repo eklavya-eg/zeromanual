@@ -25,11 +25,12 @@ export function PageHeader({
     <div className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div>
         {eyebrow && (
-          <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--blue)]">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--panel)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--blue)] shadow-sm">
+            <span className="size-1.5 rounded-full bg-[var(--blue)] shadow-[0_0_0_4px_rgba(82,111,242,.12)]" />
             {eyebrow}
           </div>
         )}
-        <h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-[38px]">{title}</h1>
+        <h1 className="text-3xl font-semibold tracking-[-0.045em] sm:text-[40px]">{title}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:text-[15px]">{description}</p>
       </div>
       {action}
@@ -85,7 +86,8 @@ export function MetricCard({ label, value, detail, icon, accent = "blue" }: { la
     violet: "from-[#ece3ff] to-[#fbf9ff] text-[#8054d6]",
   };
   return (
-    <Card className="group p-5 transition hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(30,31,45,.09)]">
+    <Card className="group relative overflow-hidden p-5 transition hover:-translate-y-1 hover:border-blue-200/70 hover:shadow-[0_20px_55px_rgba(30,31,65,.11)]">
+      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent opacity-0 transition group-hover:opacity-100" />
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold text-[var(--muted)]">{label}</p>
@@ -102,7 +104,7 @@ export function LoadingState({ label = "Loading workspace" }: { label?: string }
   return <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-[var(--muted)]"><LoaderCircle className="size-5 animate-spin text-[var(--blue)]" />{label}</div>;
 }
 
-export function ErrorState({ title = "Could not reach Switch", message, compact = false }: { title?: string; message?: string; compact?: boolean }) {
+export function ErrorState({ title = "Could not reach Eye", message, compact = false }: { title?: string; message?: string; compact?: boolean }) {
   return (
     <div className={cn("rounded-[22px] border border-red-100 bg-red-50/70 p-5", !compact && "min-h-40 grid place-items-center text-center")}>
       <div>

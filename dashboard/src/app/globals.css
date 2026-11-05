@@ -1,11 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f5f5f2;
-  --ink: #171822;
-  --muted: #767986;
-  --blue: #5472f3;
-  --line: rgba(20, 22, 32, 0.075);
+  --canvas: #f4f5f8;
+  --ink: #171923;
+  --muted: #747887;
+  --blue: #526ff2;
+  --line: rgba(28, 31, 44, 0.08);
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-solid: #ffffff;
+  --soft: rgba(24, 27, 39, 0.035);
+  --sidebar: rgba(255, 255, 255, 0.76);
+  --shadow: rgba(32, 36, 56, 0.055);
+  --grid-line: rgba(25, 27, 39, 0.035);
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0d0f16;
+  --ink: #f1f3fb;
+  --muted: #969bab;
+  --blue: #7d94ff;
+  --line: rgba(221, 226, 255, 0.1);
+  --panel: rgba(24, 27, 38, 0.88);
+  --panel-solid: #191c27;
+  --soft: rgba(255, 255, 255, 0.045);
+  --sidebar: rgba(15, 17, 25, 0.82);
+  --shadow: rgba(0, 0, 0, 0.28);
+  --grid-line: rgba(225, 229, 255, 0.045);
 }
 
 @theme inline {
@@ -28,6 +48,11 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--blue) 28%, transparent);
 }
 
 button,
@@ -54,9 +79,10 @@ textarea:focus-visible {
 .surface {
   border: 1px solid var(--line);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 8px 30px rgba(32, 34, 46, 0.045);
+  background: var(--panel);
+  box-shadow: 0 10px 36px var(--shadow);
   backdrop-filter: blur(18px);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .ambient {
@@ -71,30 +97,73 @@ textarea:focus-visible {
 .ambient-one {
   right: 4vw;
   top: 8vh;
-  width: 340px;
-  height: 260px;
-  background: #b8c5ff;
+  width: 380px;
+  height: 280px;
+  background: #aebdff;
 }
 
 .ambient-two {
   left: 18vw;
   bottom: 4vh;
-  width: 300px;
-  height: 220px;
-  background: #ffd5b8;
-  opacity: 0.22;
+  width: 320px;
+  height: 240px;
+  background: #d8b7ff;
+  opacity: 0.18;
+}
+
+[data-theme="dark"] .ambient {
+  opacity: 0.13;
+  filter: blur(110px);
 }
 
 .soft-grid {
   background-image:
-    linear-gradient(rgba(25, 27, 39, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(25, 27, 39, 0.035) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #d7d8de transparent;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.brand-mark {
+  box-shadow: 0 10px 24px rgba(82, 111, 242, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] [class~="bg-white/70"],
+[data-theme="dark"] [class~="bg-white/80"],
+[data-theme="dark"] [class~="bg-white/90"] {
+  background-color: var(--panel-solid) !important;
+}
+
+[data-theme="dark"] [class*="border-black/"],
+[data-theme="dark"] [class*="divide-black/"] {
+  border-color: var(--line) !important;
+}
+
+[data-theme="dark"] [class*="bg-black/"] {
+  background-color: var(--soft) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .text-\[\#434655\],
+[data-theme="dark"] .text-\[\#3d4050\],
+[data-theme="dark"] .text-\[\#4d5269\] {
+  color: var(--ink) !important;
+}
+
+[data-theme="dark"] .bg-\[\#f6f6f4\],
+[data-theme="dark"] .bg-\[\#f7f7f5\],
+[data-theme="dark"] .bg-\[\#fafaf8\] {
+  background-color: var(--soft) !important;
 }
 
 @keyframes pulse-soft {

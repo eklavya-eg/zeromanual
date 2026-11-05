@@ -1,4 +1,4 @@
-# Switch — Service Plan
+# Eye — Service Plan
 
 ## Goal
 
@@ -6,7 +6,7 @@ Build a modular job-switch automation platform where workflows invoke detachable
 
 ## 1. Scheduled Workflow Service — implemented foundation
 
-**Project:** `switch`
+**Project:** `eye`
 
 ### Responsibilities
 
@@ -80,7 +80,7 @@ Every detachable sub-agent service exposes `POST /invoke`, accepts its own JSON 
 ### Implemented structure
 
 ```text
-switch/
+eye/
 ├── app/
 │   ├── routes/scheduled.py
 │   ├── app.py
@@ -158,10 +158,10 @@ Start inside the Scheduled Workflow Service, then extract if load requires it.
 ### Implemented persistence foundation
 
 - PostgreSQL stores sub-agents, workflows, ordered steps, schedules, workflow runs, and step runs.
-- `switch/prisma/schema.prisma` is the model source of truth.
-- Prisma migrations are committed under `switch/prisma/migrations/`.
+- `eye/prisma/schema.prisma` is the model source of truth.
+- Prisma migrations are committed under `eye/prisma/migrations/`.
 - FastAPI uses the generated asynchronous Prisma Python client; SQLAlchemy models are not duplicated.
-- Repository-level `compose.yaml` provides PostgreSQL on the `switch-backend` network.
+- Repository-level `compose.yaml` provides PostgreSQL on the `eye-backend` network.
 - The `switch-postgres-data` named volume preserves database data across container recreation.
 
 ### Planned infrastructure
@@ -365,7 +365,7 @@ Backend additions needed for the complete UI:
 
 ## Delivery Phases
 
-1. **Done:** Scaffold the `switch` FastAPI service and scheduled router.
+1. **Done:** Scaffold the `eye` FastAPI service and scheduled router.
 2. **Done:** Add sub-agent discovery and the `/invoke` client contract.
 3. **Done:** Add ordered workflow stacks with predetermined payloads and run tracking.
 4. **Done:** Add separate schedule CRUD for multiple time/range entries per workflow.

@@ -1,0 +1,143 @@
+{
+  "name": "Eklavya Gupta",
+  "headline": "Backend & AI Engineer | Agent Harness Engineering & System Design",
+  "contact": {
+    "email": "egmm0120@gmail.com",
+    "phone": "+91-8287400178",
+    "linkedin": "linkedin.com/in/eklavya-gupta-05668921b",
+    "github": "github.com/eklavya-eg",
+    "website": "eklavya.site"
+  },
+  "summary": "Product Engineer with hands-on experience in building and designing agent harnesses, retrieval pipelines, scalable systems, and concurrent services. Focused on optimization, security, scalable, and requirement aware system design.",
+  "skills": [
+    {
+      "label": "Agent Harnesses",
+      "items": [
+        "Sandboxing",
+        "Deferred loading",
+        "OAuth",
+        "Tool orchestration",
+        "Context/memory management",
+        "MCP",
+        "Hybrid RAG",
+        "ACE"
+      ]
+    },
+    {
+      "label": "Systems & Backend",
+      "items": [
+        "System design (HLD/LLD)",
+        "Distributed systems",
+        "Microservices",
+        "Pub/Sub",
+        "Rate limiting",
+        "Web Sockets",
+        "Http server",
+        "OAuth",
+        "FastAPI",
+        "PostgreSQL",
+        "Redis",
+        "Celery",
+        "Caching",
+        "Pub/Sub",
+        "Concurrency",
+        "Observability"
+      ]
+    },
+    {
+      "label": "Cloud & Delivery",
+      "items": [
+        "AWS (Bedrock AgentCore, Lambda, EC2, S3, ECS)",
+        "Docker",
+        "Kubernetes",
+        "Jenkins",
+        "CI/CD",
+        "Observability"
+      ]
+    },
+    {
+      "label": "Languages",
+      "items": [
+        "Python",
+        "GoLang",
+        "JavaScript",
+        "SQL"
+      ]
+    }
+  ],
+  "experience": [
+    {
+      "role": "Product Engineer",
+      "company": "Tata Consultancy Services",
+      "dates": "Nov 2025 - Present",
+      "location": "Noida, India",
+      "client_or_project": "ADD Safety - LifeSciences",
+      "bullets": [
+        "Built and deployed LangGraph/DeepAgents multi-agent workflows on AWS Bedrock AgentCore, coordinating task delegation and short-term conversational memory across multi-turn sessions.",
+        "Improved medical-code top-k retrieval from ~60% to 95%+ through an MCP-served pipeline combining BM25, semantic search, and two-stage reranking ending in ACE reranking.",
+        "Achieved 80% medical-coding task accuracy with ACE (Agentic Context Engineering), using Generator, Reflector, and Curator stages to adapt agent context to specialized LifeSciences tasks.",
+        "Reduced ACE adaptation time from 24 to 5-6 hours through script-level parallelism; cut inference runtime by 75% (8 to 2 hours) using database/network concurrency and result caching.",
+        "Built a centralized agent development library with reusable abstractions, shared components, and utilities to standardize development and reduce repeated implementation across the team.",
+        "Automated agent and MCP-server deployments with Jenkins CI/CD; built an AWS Lambda snapshot service to back up AgentCore conversational memory."
+      ]
+    },
+    {
+      "role": "Backend Engineer (Intern to Full-time)",
+      "company": "Infigos Software Solutions Ltd",
+      "dates": "Dec 2024 - Nov 2025",
+      "location": "Remote",
+      "client_or_project": "US Government RFP Proposal Automation",
+      "bullets": [
+        "Contributed FastAPI services to a multi-agent RFP platform for a US client, combining labor-rate data, competitor pricing, and historical project records to draft government proposal responses.",
+        "Integrated OpenAI APIs with Pinecone to retrieve past proposals and project knowledge; used Pydantic schemas and service-layer boundaries to validate structured data in a modular backend.",
+        "During internship, designed asynchronous ML prediction workflows with FastAPI, Celery, and Redis, with concurrent pandas processing and MongoDB result storage; reduced model loading time by 60% using thread-safe processing and TTL-based model caching."
+      ]
+    },
+    {
+      "role": "Software Developer Intern",
+      "company": "LiveSitter",
+      "dates": "Feb 2024 - Jun 2024",
+      "location": "Remote",
+      "bullets": [
+        "Processed RTSP feeds from 500+ CCTV cameras with Python/Flask and Redis Pub/Sub; built batch YOLO inference that reduced GPU costs by 40% and deployed on AWS EC2.",
+        "Added human-in-the-loop post-inference monitoring, reducing error rates by 30% in one month."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "MT5 - Algorithmic Trading & Backtesting Platform",
+      "dates": "Jul 2026 - Present",
+      "bullets": [
+        "Built a FastAPI/React platform for 25+ strategies; separated signal generation from exit simulation, parallelized parameter sweeps with ProcessPoolExecutor, and added walk-forward validation, Monte Carlo risk analysis, and broker-position reconciliation."
+      ]
+    },
+    {
+      "name": "Zerodha MCP",
+      "dates": "Jul 2025 - Present",
+      "bullets": [
+        "Built an MCP server/client integration exposing Zerodha APIs to LLM tools for natural-language stock/options orders and multi-leg strategies, including straddles and strangles."
+      ]
+    },
+    {
+      "name": "Repel",
+      "dates": "Aug 2025 - Sep 2025",
+      "bullets": [
+        "Built Repel, a full-stack web app demonstrating how LLMs can enable scalable code generation and execution for broader projects.",
+        "Integrated an in-browser code editor with Monaco and executed code securely using Web Containers."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "qualification": "B.Tech Computer Science Engineering (Spl - AIML)",
+      "dates": "Aug 2021 - Jul 2025",
+      "institution": "University of Petroleum and Energy Studies, Dehradun"
+    },
+    {
+      "qualification": "High School",
+      "dates": "Apr 2019 - Apr 2021",
+      "institution": "DAV Public School, Faridabad"
+    }
+  ]
+}

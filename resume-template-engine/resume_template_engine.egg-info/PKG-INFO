@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: resume-template-engine
+Version: 0.1.0
+Summary: JSON-to-PDF renderer for a fixed, ATS-friendly A4 resume template
+Requires-Python: >=3.10
+Requires-Dist: pydantic>=2.6
+Requires-Dist: jinja2>=3.1
+Requires-Dist: playwright>=1.42

@@ -7,13 +7,25 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Switch — Agent Operations",
-  description: "Build, schedule, and observe multi-agent workflows.",
+  title: "Eye — Operations Control",
+  description: "Observe, control, and automate applications from one operational workspace.",
 };
+
+const themeScript = `
+  (() => {
+    const saved = localStorage.getItem("eye-theme");
+    const theme = saved === "dark" || saved === "light"
+      ? saved
+      : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  })();
+`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body className="min-h-full">
         <Providers>
           <Suspense fallback={<div className="min-h-screen bg-[var(--canvas)]" />}>

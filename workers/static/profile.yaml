@@ -1,0 +1,96 @@
+name: Eklavya Gupta
+contact: {email: egmm0120@gmail.com, phone: "+91-8287400178", linkedin: linkedin.com/in/eklavya-gupta-05668921b, github: github.com/eklavya-eg, website: eklavya.site, leetcode: leetcode.com/u/user1505KO/}
+
+skills:
+  languages: [Python, TypeScript, JavaScript, SQL, Rust, Go]
+  agent_harnesses: [harness engineering, Tool orchestration, Context/memory management, Sandboxing, OAuth, Deferred loading, MCP, LangGraph, DeepAgents, LangChain, FastMCP, ACE]
+  retrieval_and_ai: [Hybrid RAG, BM25, Semantic search, Reranking, OpenAI API, Anthropic API, Gemini API, Human-in-the-loop monitoring, YOLO, Triplet loss]
+  system_design: [System design (HLD/LLD), Distributed systems, Microservices, Pub/Sub, Rate limiting, Concurrency, Thread-safe processing, Caching, TTL-based cache eviction, Message brokers, Message queues, Dependency injection, Service-layer architecture, SOLID, OOP]
+  backend: [Node.js, Express.js, FastAPI, Flask, Celery, Pydantic, Prisma ORM, Zod, Multer, pandas]
+  databases: [PostgreSQL, MongoDB, Redis, Pinecone]
+  protocols_and_auth: [REST APIs, HTTP, WebSockets, Socket.io, OAuth, SSL, JWT]
+  cloud_and_devops: [AWS Bedrock AgentCore, AWS Lambda, Amazon EC2, Amazon S3, Amazon ECS, Amazon SQS, Docker, Kubernetes, Podman, Jenkins, GitHub Actions, CI/CD, Observability, DevOps, Git]
+  frontend_and_execution: [React, Monaco Editor, WebContainers, Sandboxing]
+
+experience:
+  - company: Tata Consultancy Services
+    role: Product Engineer
+    type: Full-time
+    dates: Nov 2025 - Present
+    location: Noida, India
+    project: ADD Safety - LifeSciences
+    highlights:
+      - Built LangGraph/DeepAgents multi-agent workflows on AWS Bedrock AgentCore with task delegation and short-term conversational memory.
+      - Improved medical-code top-k retrieval from ~60% to 95%+ using MCP, BM25, semantic search, and two-stage reranking ending in ACE reranking.
+      - Achieved 80% medical-coding task accuracy with ACE (Agentic Context Engineering), using Generator, Reflector, and Curator stages for domain adaptation.
+      - Cut ACE adaptation time from 24 to 5-6 hours through parallelism; reduced inference runtime by 75% (8 to 2 hours) through database/network concurrency and caching.
+      - Built a shared agent development library with reusable abstractions and components to standardize development across the team.
+      - Automated agent/MCP deployments with Jenkins CI/CD; built an AWS Lambda service to back up AgentCore conversational memory.
+
+  - company: Infigos Software Solutions Ltd
+    role: Backend Engineer
+    type: Full-time
+    dates: Jun 2025 - Nov 2025
+    location: Remote
+    project: US Government RFP Proposal Automation
+    highlights:
+      - Contributed FastAPI services and multi-agent workflows for a US client, drafting government RFP responses from labor-rate data, competitor pricing, and historical project records.
+      - Integrated OpenAI/Anthropic APIs and Pinecone retrieval over past proposals; implemented Pydantic validation and service-layer architecture in a modular backend with a small engineering team.
+
+  - company: Infigos Software Solutions Ltd
+    role: Backend Engineer Intern
+    type: Internship
+    dates: Dec 2024 - May 2025
+    location: Remote
+    highlights:
+      - Designed asynchronous ML prediction workflows with FastAPI, Celery, and Redis; reduced model loading time by 60% with thread-safe processing and TTL-based model caching.
+      - Built banking case-management CRUD APIs with Node.js/Express, PostgreSQL, and Prisma; added Zod validation, Multer uploads, error handling, and health checks.
+      - Implemented concurrent pandas processing, MongoDB result storage, and Redis session management.
+      - Built TypeScript services and a custom Figma plugin to sync design tokens into a dashboard; reduced component payload size with compact schemas and connected GitHub-triggered CI/CD.
+
+  - company: LiveSitter
+    role: Software Developer Intern
+    type: Internship
+    dates: Feb 2024 - Jun 2024
+    location: Remote
+    highlights:
+      - Processed RTSP feeds from 500+ CCTV cameras using Python/Flask and Redis Pub/Sub.
+      - Built a Redis microservice for batch YOLO inference, reducing GPU costs by 40%; deployed on AWS EC2 with CI/CD.
+      - Added human-in-the-loop post-inference monitoring, reducing error rates by 30% in one month.
+
+projects:
+  - name: MT5 - Algorithmic Trading & Backtesting Platform
+    dates: Jul 2026 - Present
+    highlights:
+      - Built a FastAPI/React platform for backtesting and live trading 25+ strategies on MetaTrader 5 XAUUSD data, with dependency injection and WebSocket-streamed signals.
+      - Separated signal generation from exit simulation and parallelized parameter sweeps with ProcessPoolExecutor.
+      - Added walk-forward validation, Monte Carlo risk-of-ruin analysis, broker-position reconciliation, a kill switch, trailing stops, and Telegram alerts.
+  - name: Zerodha MCP
+    dates: Jul 2025 - Present
+    highlights:
+      - Built an MCP server/client integration exposing Zerodha APIs to LLM tools for natural-language stock/options orders and multi-leg strategies, including straddles and strangles.
+  - name: Repel
+    dates: Jul 2025 - Aug 2025
+    note: Confirm dates before use; old resume lists Aug-Sep 2025.
+    highlights:
+      - Built a Gemini-powered website generation app with Monaco Editor and in-browser code execution using WebContainers.
+  - name: Draw
+    dates: May 2025 - Jul 2025
+    highlights:
+      - Built collaborative drawing with Pub/Sub messaging and WebSockets for bidirectional real-time updates across clients and sessions.
+  - name: One-Shot Learning - FaceNet
+    dates: Jan 2024 - May 2024
+    highlights:
+      - Implemented Inception layers, point-wise convolutions, and triplet loss to generate face embeddings, minimizing intra-class distance and maximizing inter-class separation.
+
+education:
+  - qualification: B.Tech, Computer Science Engineering (AI & ML)
+    institution: University of Petroleum and Energy Studies, Dehradun
+    dates: Aug 2021 - Jul 2025
+  - qualification: High School
+    institution: DAV Public School, Faridabad
+    dates: Apr 2019 - Apr 2021
+  - qualification: Class X, CBSE
+    completion_year: 2019
+
+achievements: []

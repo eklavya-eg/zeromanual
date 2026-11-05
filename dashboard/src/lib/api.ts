@@ -9,10 +9,16 @@ import type {
   Workflow,
   WorkflowInput,
   WorkflowRun,
+  Worker,
+  WorkerDashboard,
+  WorkerLog,
+  WorkerTaskRun,
 } from "@/lib/types";
 
 export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_SWITCH_API_URL ?? "/api"
+  process.env.NEXT_PUBLIC_EYE_API_URL ??
+  process.env.NEXT_PUBLIC_SWITCH_API_URL ??
+  "/api"
 ).replace(/\/$/, "");
 
 const scheduledUrl = `${API_BASE_URL}/scheduled`;
@@ -81,14 +87,16 @@ export const api = {
   workflows: {
     list: () => request<Workflow[]>("/workflows"),
     get: (id: string) => request<Workflow>(`/workflows/${id}`),
-    create: (input: WorkflowInput) =>
+    create: (input: WorkflowInput, commandToken?: string) =>
       request<Workflow>("/workflows", {
         method: "POST",
+        headers: commandToken ? { "X-Eye-Command-Token": commandToken } : {},
         body: JSON.stringify(input),
       }),
-    update: (id: string, input: Partial<WorkflowInput>) =>
+    update: (id: string, input: Partial<WorkflowInput>, commandToken?: string) =>
       request<Workflow>(`/workflows/${id}`, {
         method: "PATCH",
+        headers: commandToken ? { "X-Eye-Command-Token": commandToken } : {},
         body: JSON.stringify(input),
       }),
     remove: (id: string) =>
@@ -125,6 +133,22 @@ export const api = {
       ),
     steps: (id: string) => request<RunStep[]>(`/runs/${id}/steps`),
   },
+  workers: {
+    list: () => request<Worker[]>("/workers", undefined, API_BASE_URL),
+    dashboard: (id: string, page = 1, status?: string) => {
+      const params = new URLSearchParams({ page: String(page), page_size: "20" });
+      if (status) params.set("status", status);
+      return request<WorkerDashboard>(
+        `/workers/${encodeURIComponent(id)}/dashboard?${params}`,
+        undefined,
+        API_BASE_URL,
+      );
+    },
+    run: (id: string) =>
+      request<WorkerTaskRun>(`/workers/runs/${encodeURIComponent(id)}`, undefined, API_BASE_URL),
+    logs: (id: string) =>
+      request<WorkerLog[]>(`/workers/runs/${encodeURIComponent(id)}/logs`, undefined, API_BASE_URL),
+  },
   notifications: {
     list: () =>
       request<SubAgentNotification[]>("", undefined, `${API_BASE_URL}/notifications`),
@@ -132,7 +156,8 @@ export const api = {
 };
 
 export function notificationSocketUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_SWITCH_WS_URL;
+  const configured =
+    process.env.NEXT_PUBLIC_EYE_WS_URL ?? process.env.NEXT_PUBLIC_SWITCH_WS_URL;
   if (configured) return configured;
 
   const apiUrl = new URL(API_BASE_URL, window.location.origin);

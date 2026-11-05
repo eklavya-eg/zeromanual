@@ -1,19 +1,19 @@
-name: switch-platform
+name: eye-platform
 
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-switch}
-      POSTGRES_USER: ${POSTGRES_USER:-switch}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-switch-local-password}
+      POSTGRES_DB: ${POSTGRES_DB:-eye}
+      POSTGRES_USER: ${POSTGRES_USER:-eye}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eye-local-password}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - switch_postgres_data:/var/lib/postgresql/data
+      - eye_postgres_data:/var/lib/postgresql/data
     networks:
-      - switch_backend
+      - eye_backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -28,7 +28,7 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     networks:
-      - switch_backend
+      - eye_backend
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -36,10 +36,10 @@ services:
       retries: 10
 
 volumes:
-  switch_postgres_data:
-    name: switch-postgres-data
+  eye_postgres_data:
+    name: eye-postgres-data
 
 networks:
-  switch_backend:
-    name: switch-backend
+  eye_backend:
+    name: eye-backend
     driver: bridge

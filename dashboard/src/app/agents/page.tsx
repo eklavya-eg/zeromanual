@@ -126,7 +126,7 @@ export default function AgentsPage() {
         open={trialAgent !== null}
         onClose={() => setTrialAgent(null)}
         title={`Try ${trialAgent?.name ?? "sub-agent"}`}
-        description="Send an ad-hoc payload through Switch without creating a workflow."
+        description="Send an ad-hoc payload through Eye without creating a workflow."
         wide
       >
         <div className="grid gap-5 lg:grid-cols-[.9fr_1.1fr]">
@@ -136,7 +136,7 @@ export default function AgentsPage() {
             <div className="mt-3 rounded-2xl bg-black/[0.025] px-4 py-3 font-mono text-[10px] text-[var(--muted)]">POST {trialAgent?.invoke_url}</div>
           </section>
           <section>
-            <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Async task</p><p className="mt-1 text-xs text-[var(--muted)]">Switch returns immediately; the result arrives by webhook</p></div>{invokeAgent.data && <StatusBadge tone="info">{invokeAgent.data.status}</StatusBadge>}</div>
+            <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Async task</p><p className="mt-1 text-xs text-[var(--muted)]">Eye returns immediately; the result arrives by webhook</p></div>{invokeAgent.data && <StatusBadge tone="info">{invokeAgent.data.status}</StatusBadge>}</div>
             <div className="min-h-[340px] rounded-[22px] border border-black/[0.07] bg-white p-4">
               {invokeAgent.isPending ? <div className="grid min-h-[300px] place-items-center text-center"><div><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-blue-100 border-t-[var(--blue)]" /><p className="mt-4 text-sm font-bold">Queuing task</p><p className="mt-1 text-xs text-[var(--muted)]">This should only take a moment.</p></div></div> : invokeAgent.data ? <div className="grid min-h-[300px] place-items-center text-center"><div className="max-w-md"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-[var(--blue)]"><Bell className="size-5" /></div><p className="mt-4 text-sm font-bold">Task queued</p><p className="mt-1 text-xs leading-5 text-[var(--muted)]">The browser agent is running in the background. Its payload and response will appear on the Notifications page.</p><div className="mt-4 rounded-xl bg-black/[0.035] px-3 py-2 font-mono text-[10px] text-[var(--muted)]">{invokeAgent.data.task_id}</div><Link href="/notifications" onClick={() => setTrialAgent(null)} className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--blue)] px-4 text-xs font-semibold text-white"><Bell className="size-3.5" />View notifications</Link></div></div> : <div className="grid min-h-[300px] place-items-center text-center"><div><div className="mx-auto grid size-11 place-items-center rounded-2xl bg-blue-50 text-[var(--blue)]"><Play className="size-5" /></div><p className="mt-4 text-sm font-bold">Ready for a trial</p><p className="mt-1 max-w-xs text-xs leading-5 text-[var(--muted)]">Review the payload, then queue the agent task.</p></div></div>}
             </div>

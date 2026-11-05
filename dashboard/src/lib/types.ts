@@ -8,11 +8,21 @@ export type SubAgent = {
   modified_at: string;
 };
 
+export type WorkflowStepType = "sub_agent" | "command";
+
+export type WorkflowStepInput =
+  | { step_type?: "sub_agent"; sub_agent_id: string; payload: Record<string, unknown> }
+  | { step_type: "command"; sub_agent_id: null; command: string; working_directory: string | null; timeout_seconds: number; payload?: Record<string, unknown> };
+
 export type WorkflowStep = {
   id: string;
   position: number;
-  sub_agent_id: string;
+  step_type: WorkflowStepType;
+  sub_agent_id: string | null;
   payload: Record<string, unknown>;
+  command: string | null;
+  working_directory: string | null;
+  timeout_seconds: number;
 };
 
 export type Workflow = {
@@ -97,6 +107,57 @@ export type NotificationSocketMessage =
   | { type: "ping" }
   | { type: "notification"; data: SubAgentNotification };
 
+export type Worker = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  created_at: string;
+  modified_at: string;
+};
+
+export type WorkerTaskRun = {
+  id: string;
+  worker_id: string;
+  celery_task_id: string;
+  job_url: string;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  status: string;
+  started: boolean;
+  success: boolean;
+  failed: boolean;
+  step_failed: string | null;
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+};
+
+export type WorkerDashboard = {
+  worker: Worker;
+  metrics: {
+    total_runs: number;
+    running: number;
+    succeeded: number;
+    failed: number;
+    success_rate: number | null;
+  };
+  runs: WorkerTaskRun[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type WorkerLog = {
+  id: string;
+  worker_id: string;
+  task_run_id: string;
+  level: string;
+  step: string;
+  message: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type SubAgentInput = {
   name: string;
   description: string;
@@ -108,10 +169,7 @@ export type WorkflowInput = {
   name: string;
   description: string;
   enabled?: boolean;
-  steps: Array<{
-    sub_agent_id: string;
-    payload: Record<string, unknown>;
-  }>;
+  steps: WorkflowStepInput[];
 };
 
 export type ScheduleInput = {

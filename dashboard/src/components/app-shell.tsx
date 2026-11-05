@@ -7,18 +7,21 @@ import {
   CalendarClock,
   ChartNoAxesCombined,
   Command,
+  Cpu,
   GitBranch,
   LayoutDashboard,
   Menu,
   Search,
   Settings,
-  Sparkles,
+  Workflow,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { BrandMark } from "@/components/brand-mark";
+import { ThemeToggle } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -26,6 +29,7 @@ const navigation = [
   { href: "/workflows", label: "Workflows", icon: GitBranch },
   { href: "/schedules", label: "Schedules", icon: CalendarClock },
   { href: "/agents", label: "Sub-agents", icon: Bot },
+  { href: "/workers", label: "Workers", icon: Cpu },
   { href: "/runs", label: "Runs", icon: Activity },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/usage", label: "Usage", icon: ChartNoAxesCombined },
@@ -49,15 +53,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[92px] border-r border-black/[0.06] bg-white/70 backdrop-blur-xl lg:flex lg:flex-col lg:items-center">
-        <Link
-          href="/"
-          className="mt-6 grid size-12 place-items-center rounded-2xl bg-[var(--ink)] text-white shadow-lg shadow-indigo-950/15"
-          aria-label="Switch overview"
-        >
-          <Sparkles className="size-5" />
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[104px] border-r border-[var(--line)] bg-[var(--sidebar)] backdrop-blur-2xl lg:flex lg:flex-col lg:items-center">
+        <Link href="/" className="mt-5 flex flex-col items-center gap-2" aria-label="Eye overview">
+          <BrandMark />
+          <span className="text-[10px] font-black tracking-[0.28em] text-[var(--ink)]">EYE</span>
         </Link>
-        <nav className="mt-10 flex flex-1 flex-col gap-2" aria-label="Primary navigation">
+        <nav className="mt-7 flex flex-1 flex-col gap-2" aria-label="Primary navigation">
           {navigation.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
@@ -67,8 +68,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 title={item.label}
                 aria-label={item.label}
                 className={cn(
-                  "group relative grid size-12 place-items-center rounded-2xl text-[var(--muted)] transition-all hover:bg-black/[0.04] hover:text-[var(--ink)]",
-                  active && "bg-[var(--blue)] text-white shadow-lg shadow-blue-500/25 hover:bg-[var(--blue)] hover:text-white",
+                  "group relative grid size-12 place-items-center rounded-2xl text-[var(--muted)] transition-all hover:-translate-y-0.5 hover:bg-[var(--soft)] hover:text-[var(--ink)]",
+                  active && "bg-gradient-to-br from-[#637df7] to-[#7059da] text-white shadow-lg shadow-blue-500/25 hover:text-white",
                 )}
               >
                 <item.icon className="size-[19px]" strokeWidth={active ? 2.3 : 1.8} />
@@ -79,15 +80,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="mb-6 grid size-10 place-items-center rounded-full bg-gradient-to-br from-[#d8deff] to-[#ffd8c3] text-sm font-bold text-[#2d3150]">
-          S
+        <div className="mb-5 grid size-10 place-items-center rounded-full border border-[var(--line)] bg-[var(--panel-solid)] text-sm font-bold text-[var(--ink)] shadow-sm">
+          E
         </div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 h-[78px] border-b border-black/[0.06] bg-[var(--canvas)]/80 backdrop-blur-xl lg:left-[92px]">
+      <header className="fixed inset-x-0 top-0 z-30 h-[78px] border-b border-[var(--line)] bg-[var(--canvas)]/80 backdrop-blur-2xl lg:left-[104px]">
         <div className="flex h-full items-center gap-3 px-4 sm:px-6 lg:px-9">
           <button
-            className="grid size-10 place-items-center rounded-xl border border-black/[0.07] bg-white lg:hidden"
+            className="grid size-10 place-items-center rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] lg:hidden"
             onClick={() => setMobileOpen(true)}
             aria-label="Open navigation"
           >
@@ -98,22 +99,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search workflows, agents, runs…"
-              className="h-11 w-full rounded-2xl border border-black/[0.07] bg-white/80 pl-11 pr-20 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100/70"
+              placeholder="Search workflows, services, runs…"
+              className="h-11 w-full rounded-2xl border border-[var(--line)] bg-[var(--panel)] pl-11 pr-20 text-sm shadow-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100/30"
             />
             <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded-lg border border-black/[0.07] bg-[#f7f7f5] px-2 py-1 font-mono text-[10px] text-[var(--muted)] sm:flex">
               <Command className="size-3" /> K
             </span>
           </form>
-          <div className="hidden items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 sm:flex">
+          <div className="hidden items-center gap-2 rounded-full border border-emerald-200/50 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 sm:flex">
             <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" />
-            Local environment
+            Control plane live
           </div>
+          <ThemeToggle />
           <Link
             href="/workflows?new=true"
-            className="hidden h-11 items-center gap-2 rounded-2xl bg-[var(--ink)] px-4 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 md:flex"
+            className="hidden h-11 items-center gap-2 rounded-2xl bg-[var(--ink)] px-4 text-sm font-semibold text-[var(--canvas)] shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 md:flex"
           >
-            <Sparkles className="size-4" />
+            <Workflow className="size-4" />
             Create workflow
           </Link>
         </div>
@@ -121,13 +123,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)}>
-          <aside className="h-full w-[290px] bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <aside className="h-full w-[290px] border-r border-[var(--line)] bg-[var(--panel-solid)] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 font-bold">
-                <span className="grid size-10 place-items-center rounded-2xl bg-[var(--ink)] text-white"><Sparkles className="size-4" /></span>
-                Switch
+                <BrandMark className="size-10 rounded-[14px]" />
+                <div><p>Eye</p><p className="text-[10px] font-normal text-[var(--muted)]">Operations control</p></div>
               </div>
-              <button className="grid size-9 place-items-center rounded-xl bg-black/[0.04]" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X className="size-4" /></button>
+              <button className="grid size-9 place-items-center rounded-xl bg-[var(--soft)]" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X className="size-4" /></button>
             </div>
             <nav className="mt-8 space-y-1">
               {navigation.map((item) => (
@@ -136,17 +138,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               ))}
             </nav>
+            <ThemeToggle className="mt-6 w-full" showLabel />
           </aside>
         </div>
       )}
 
-      <main className="relative min-h-screen pt-[78px] lg:pl-[92px]">
+      <main className="relative min-h-screen pt-[78px] lg:pl-[104px]">
         <div className="mx-auto w-full max-w-[1680px] p-4 pb-24 sm:p-6 lg:p-9 lg:pb-10">
           {children}
         </div>
       </main>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-[22px] border border-black/[0.07] bg-white/90 p-2 shadow-[0_16px_50px_rgba(25,25,35,.18)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
+      <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-[22px] border border-[var(--line)] bg-[var(--panel)] p-2 shadow-[0_16px_50px_rgba(0,0,0,.18)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
         {navigation.slice(0, 6).map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
