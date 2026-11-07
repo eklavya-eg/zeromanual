@@ -13,7 +13,12 @@ def client():
 
     from fastapi.testclient import TestClient
 
-    from app.app import app
+    from app import app as app_module
 
-    with TestClient(app) as test_client:
-        yield test_client
+    async def idle_monitor(stop_event, manager):
+        await stop_event.wait()
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(app_module, "schedule_monitor", idle_monitor)
+        with TestClient(app_module.app) as test_client:
+            yield test_client

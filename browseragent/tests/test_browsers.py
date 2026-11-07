@@ -56,6 +56,51 @@ def test_each_session_uses_an_isolated_profile_and_explicit_kill(monkeypatch, tm
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("failure", ["kill", "profile"])
+def test_browser_cleanup_failure_retains_profile_for_retry(monkeypatch, tmp_path, failure):
+    monkeypatch.setenv("BROWSER_USER_DATA_DIR", str(tmp_path / "no-seed"))
+    monkeypatch.setenv("BROWSER_SESSION_DATA_DIR", str(tmp_path / "sessions"))
+    failing = [True]
+    remove = browsers.shutil.rmtree
+
+    class FakeBrowser:
+        def __init__(self, **kwargs):
+            self.killed = False
+
+        async def start(self):
+            pass
+
+        async def kill(self):
+            if failure == "kill" and failing[0]:
+                raise RuntimeError("Cannot kill browser")
+            self.killed = True
+
+    def remove_profile(path):
+        if failure == "profile" and failing[0]:
+            raise PermissionError("Profile is locked")
+        remove(path)
+
+    monkeypatch.setattr(browsers, "Browser", FakeBrowser)
+    monkeypatch.setattr(browsers.shutil, "rmtree", remove_profile)
+
+    async def scenario():
+        factory = browsers.SessionBrowsers()
+        session_id = str(uuid4())
+        browser = await factory.create(session_id)
+        profile = factory.profiles[session_id]
+        with pytest.raises((RuntimeError, PermissionError)):
+            await factory.destroy(session_id, browser)
+        assert profile.exists()
+        assert factory.profiles[session_id] == profile
+        failing[0] = False
+        await factory.destroy(session_id, browser)
+        assert browser.killed
+        assert not factory.profiles
+        assert not profile.exists()
+
+    asyncio.run(scenario())
+
+
 def test_browser_start_failure_removes_temporary_profile(monkeypatch, tmp_path):
     monkeypatch.setenv("BROWSER_USER_DATA_DIR", str(tmp_path / "no-seed"))
     monkeypatch.setenv("BROWSER_SESSION_DATA_DIR", str(tmp_path / "sessions"))

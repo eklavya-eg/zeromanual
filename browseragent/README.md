@@ -91,6 +91,27 @@ Requests with `_eye` or `_switch` still deliver completion through the existing 
 
 Run **one Uvicorn process** for this local browser registry. If an ID belongs to another process (including stale metadata after a crash), invocation returns 409 rather than attaching to the wrong browser. Use another UUID or wait for expiry; Redis does not recover live browsers or local queues after a restart. A disconnected HTTP caller does not cancel an already accepted instruction.
 
+### Manually close a browser
+
+Call `DELETE /sessions/{id}` with the UUID supplied to `/invoke`:
+
+```powershell
+Invoke-RestMethod -Method Delete `
+  -Uri http://127.0.0.1:8001/sessions/0dc01594-6f6b-459c-8f35-7d61ea778c22
+```
+
+A successful response is **204 No Content**, returned after the service:
+
+- Cancels the running instruction and discards queued instructions; waiting callers fail with `Browser session closed`, and callback requests receive failure notifications.
+- Explicitly kills the browser, removes its isolated temporary profile, and clears its local session/queue registry.
+- Removes the Redis session metadata and **all** associated instruction records, including completed and failed history. The seed browser profile and other sessions are untouched.
+
+Session and instruction lookups then return 404. Deletion is idempotent: deleting an already absent UUID also returns 204 and removes any orphaned instruction history. Invoking the same UUID afterward starts a fresh browser. One-shot invocations without an `id` cannot be addressed by this endpoint.
+
+New instructions for a closing session are rejected with 409. Disconnecting the DELETE caller does not cancel cleanup. Redis failures return 503; the local browser is still closed when possible, and a retryable closing entry is retained until Redis cleanup succeeds. Browser/profile cleanup failures return 500. Retry DELETE after resolving either failure; a success is never reported for partial cleanup.
+
+The request must reach the process that owns the live browser. Foreign ownership returns 409 without deleting that process's Redis state; Redis cannot remotely terminate another process's browser. Invalid UUIDs return 422.
+
 ### Session configuration
 
 Start the repository Redis service before using session IDs (from the repository root):

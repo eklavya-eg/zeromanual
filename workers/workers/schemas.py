@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StrictModel(BaseModel):
@@ -52,16 +54,28 @@ class Resume(StrictModel):
 
 
 class ResumeTailoringResult(StrictModel):
+    is_redflag: bool
     update_required: bool
-    reason: str
+    reason: str = Field(min_length=1)
     resume: Resume | None
+
+    @model_validator(mode="after")
+    def validate_decision(self) -> "ResumeTailoringResult":
+        if self.is_redflag:
+            if self.update_required or self.resume is not None:
+                raise ValueError("A red-flag job must not tailor or return a resume")
+        elif self.resume is None:
+            raise ValueError("An eligible job must return a complete resume (original if no update is needed)")
+        return self
 
 
 class JobApplicationResult(StrictModel):
     task_run_id: str
-    status: str
-    resume_updated: bool
-    resume_id: str
-    resume_path: str
-    browser_session_id: str
-    browser_result: dict
+    status: Literal["succeeded", "skipped"]
+    resume_updated: bool = False
+    resume_id: str | None = None
+    resume_path: str | None = None
+    browser_session_id: str | None = None
+    browser_result: dict | None = None
+    skip_reason: Literal["duplicate", "redflag"] | None = None
+    reason: str | None = None

@@ -5,13 +5,14 @@ import type {
   ScheduleInput,
   SubAgent,
   SubAgentInput,
-  SubAgentNotification,
+  AppNotification,
   Workflow,
   WorkflowInput,
   WorkflowRun,
   Worker,
   WorkerDashboard,
   WorkerLog,
+  WorkerSkip,
   WorkerTaskRun,
 } from "@/lib/types";
 
@@ -148,10 +149,12 @@ export const api = {
       request<WorkerTaskRun>(`/workers/runs/${encodeURIComponent(id)}`, undefined, API_BASE_URL),
     logs: (id: string) =>
       request<WorkerLog[]>(`/workers/runs/${encodeURIComponent(id)}/logs`, undefined, API_BASE_URL),
+    skip: (id: string) =>
+      request<WorkerSkip | null>(`/workers/runs/${encodeURIComponent(id)}/skip`, undefined, API_BASE_URL),
   },
   notifications: {
     list: () =>
-      request<SubAgentNotification[]>("", undefined, `${API_BASE_URL}/notifications`),
+      request<AppNotification[]>("", undefined, `${API_BASE_URL}/notifications`),
   },
 };
 

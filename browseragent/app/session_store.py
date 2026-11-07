@@ -15,6 +15,18 @@ local current = redis.call('GET', KEYS[1])
 if not current or cjson.decode(current).owner ~= ARGV[1] then return 0 end
 return redis.call('DEL', KEYS[1])
 """
+PURGE_OWNED = """
+local current = redis.call('GET', KEYS[1])
+if current and cjson.decode(current).owner ~= ARGV[1] then return 0 end
+for i = 2, #KEYS do
+    local record = redis.call('GET', KEYS[i])
+    if record and cjson.decode(record).id == ARGV[2] then
+        redis.call('DEL', KEYS[i])
+    end
+end
+redis.call('DEL', KEYS[1])
+return 1
+"""
 
 
 class SessionStore:
@@ -47,6 +59,21 @@ class SessionStore:
 
     async def delete(self, session_id: str, owner: str) -> None:
         await self.redis.eval(DELETE_OWNED, 1, self.session_key(session_id), owner)
+
+    async def purge(self, session_id: str, owner: str | None) -> bool:
+        metadata = await self.get_session(session_id)
+        if metadata is not None and metadata["owner"] != owner:
+            return False
+        instruction_keys = []
+        # Include completed instructions and records written before this process started.
+        async for key in self.redis.scan_iter(match=f"{self.namespace}:instruction:*", count=100):
+            value = await self.redis.get(key)
+            if value and json.loads(value).get("id") == session_id:
+                instruction_keys.append(key)
+        return bool(await self.redis.eval(
+            PURGE_OWNED, 1 + len(instruction_keys), self.session_key(session_id),
+            *instruction_keys, owner or "", session_id,
+        ))
 
     async def save_instruction(self, record: dict[str, Any], ttl: int) -> None:
         await self.redis.set(

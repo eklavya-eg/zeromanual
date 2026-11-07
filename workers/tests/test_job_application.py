@@ -72,6 +72,7 @@ def test_complete_task_runs_modular_steps(monkeypatch, tmp_path: Path, update_re
     (tmp_path / "resume.json").write_text(original.model_dump_json(), encoding="utf-8")
     observability = FakeObservability()
     browser_calls = []
+    closed_sessions = []
     rendered = []
 
     def generate(**kwargs):
@@ -79,9 +80,9 @@ def test_complete_task_runs_modular_steps(monkeypatch, tmp_path: Path, update_re
         assert JOB_DESCRIPTION in kwargs["prompt"]
         assert len(browser_calls) == 1
         return ResumeTailoringResult(
-            update_required=update_required,
+            is_redflag=False, update_required=update_required,
             reason="Relevant experience",
-            resume=tailored if update_required else None,
+            resume=tailored if update_required else original,
         )
 
     def render(json_path, pdf_path, html_path):
@@ -90,10 +91,13 @@ def test_complete_task_runs_modular_steps(monkeypatch, tmp_path: Path, update_re
         html_path.write_text("test-html", encoding="utf-8")
 
     def browser(request):
+        if request.method == "DELETE":
+            closed_sessions.append(request.url.path.rsplit("/", 1)[-1])
+            return httpx.Response(204)
         body = json.loads(request.content)
         browser_calls.append(body)
         if len(browser_calls) == 1:
-            assert "Do not apply" in body["task"]
+            assert "return the complete job description" in body["task"]
             assert "Backend Engineer" in body["task"]
             assert "Example Company" in body["task"]
             assert "https://example.com/jobs/1" in body["task"]
@@ -118,6 +122,7 @@ def test_complete_task_runs_modular_steps(monkeypatch, tmp_path: Path, update_re
     assert rendered == [tailored if update_required else original]
     assert result.browser_result["result"] == "submitted"
     assert len(browser_calls) == 2
+    assert closed_sessions == [result.browser_session_id]
     assert browser_calls[0]["id"] == browser_calls[1]["id"] == result.browser_session_id
     assert UUID(result.browser_session_id).version == 4
     assert UUID(result.resume_id).version == 4
@@ -128,7 +133,7 @@ def test_complete_task_runs_modular_steps(monkeypatch, tmp_path: Path, update_re
     assert browser_calls[1]["available_file_paths"] == [result.resume_path]
     assert "only when the application requires a separate" in browser_calls[1]["task"]
     assert "option to upload a different resume" in browser_calls[1]["task"]
-    assert "never search for or substitute" in browser_calls[1]["task"]
+    assert "Resume PDF path is given below" in browser_calls[1]["task"]
     assert Path(result.resume_path).read_bytes() == b"test-pdf"
     assert [entry[1] for entry in observability.entries if entry[2] == "Step succeeded"] == [
         "load_profile",
@@ -167,8 +172,11 @@ def test_invalid_job_description_stops_before_tailoring(monkeypatch, tmp_path: P
         return {"status": "completed", "result": description}
 
     monkeypatch.setattr(worker, "invoke_browser_agent", browser)
+    closed_sessions = []
+    monkeypatch.setattr(worker, "close_browser_session", lambda session_id, value: closed_sessions.append(session_id))
     with pytest.raises(StepFailedError) as exc:
         worker.run(payload(), "run-1")
+    assert closed_sessions == [calls[0]["session_id"]]
     assert exc.value.step == "fetch_job_description"
     assert len(calls) == 1
     assert not worker.settings.output_dir.exists()
@@ -179,7 +187,7 @@ def test_concurrent_runs_isolate_browser_sessions_and_resume_artifacts(monkeypat
         settings(tmp_path),
         FakeObservability(),
         llm=SimpleNamespace(generate=lambda **kwargs: ResumeTailoringResult(
-            update_required=False, reason="Already relevant", resume=None
+            is_redflag=False, update_required=False, reason="Already relevant", resume=Resume(name="Candidate")
         )),
     )
     monkeypatch.setattr(worker, "load_profile", lambda path: {})
@@ -194,9 +202,12 @@ def test_concurrent_runs_isolate_browser_sessions_and_resume_artifacts(monkeypat
 
     monkeypatch.setattr("workers.handlers.job_application.render", render)
     monkeypatch.setattr(worker, "invoke_browser_agent", browser)
+    closed_sessions = []
+    monkeypatch.setattr(worker, "close_browser_session", lambda session_id, value: closed_sessions.append(session_id))
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(lambda _: worker.run(payload(), "same-run"), range(2)))
     assert results[0].browser_session_id != results[1].browser_session_id
+    assert sorted(closed_sessions) == sorted(result.browser_session_id for result in results)
     assert results[0].resume_id != results[1].resume_id
     assert results[0].resume_path != results[1].resume_path
     for result in results:
@@ -282,14 +293,18 @@ def test_terminal_step_failure_stops_pipeline(monkeypatch, tmp_path: Path, failu
         settings(tmp_path),
         FakeObservability(),
         llm=SimpleNamespace(generate=lambda **kwargs: ResumeTailoringResult(
-            update_required=False, reason="Already relevant", resume=None
+            is_redflag=False, update_required=False, reason="Already relevant", resume=Resume(name="Candidate")
         )),
     )
     monkeypatch.setattr(worker, "load_profile", lambda path: {})
     monkeypatch.setattr(worker, "load_resume", lambda path: Resume(name="Candidate"))
     browser_calls = []
+    closed_sessions = []
 
     def browser(request):
+        if request.method == "DELETE":
+            closed_sessions.append(request.url.path.rsplit("/", 1)[-1])
+            return httpx.Response(204)
         body = json.loads(request.content)
         browser_calls.append(body)
         if failure_step == "fetch_job_description" or len(browser_calls) == 2:
@@ -310,6 +325,7 @@ def test_terminal_step_failure_stops_pipeline(monkeypatch, tmp_path: Path, failu
     with pytest.raises(StepFailedError) as exc:
         worker.run(payload(), "run-1")
     assert exc.value.step == failure_step
+    assert closed_sessions == [browser_calls[0]["id"]]
     assert len(browser_calls) == (2 if failure_step == "apply_to_job" else 1)
 
 

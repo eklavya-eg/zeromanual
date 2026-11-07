@@ -1,4 +1,6 @@
+import asyncio
 import os
+import time
 from datetime import datetime
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -11,10 +13,31 @@ from prisma import Prisma
 from app import execution
 from app.database import get_database
 from app.routes.scheduled import router
+from app.workflow_runs import WorkflowRunManager
 from tests.test_commands import python_command
 
 TOKEN = "test-command-token"
 HEADERS = {"X-Eye-Command-Token": TOKEN}
+
+
+class MemoryNotifications:
+    def __init__(self):
+        self.completed = []
+
+    async def publish_workflow_run(self, run, workflow_name):
+        self.completed.append((run, workflow_name))
+
+
+def wait_for_run(api, run_id):
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        response = api.get(f"/api/scheduled/runs/{run_id}")
+        assert response.status_code == 200, response.text
+        run = response.json()
+        if run["status"] in {"succeeded", "failed"}:
+            return run
+        time.sleep(0.05)
+    pytest.fail("Workflow did not finish within the test deadline")
 
 
 @pytest.fixture
@@ -28,9 +51,11 @@ def command_client(monkeypatch):
     @asynccontextmanager
     async def lifespan(app):
         await db.connect()
+        app.state.workflow_runs = WorkflowRunManager(MemoryNotifications())
         try:
             yield
         finally:
+            await app.state.workflow_runs.close()
             await db.disconnect()
 
     application = FastAPI(lifespan=lifespan)
@@ -71,8 +96,10 @@ def test_mixed_workflow_executes_command_then_agent_and_can_switch_step_type(com
         assert workflow["total_sub_agents"] == 1
         assert api.get(f"/api/scheduled/workflows/{workflow_id}").json() == workflow
         run = api.post(f"/api/scheduled/run/{workflow_id}")
-        assert run.status_code == 200, run.text
-        assert run.json()["status"] == "succeeded"
+        assert run.status_code == 202, run.text
+        assert run.json()["status"] == "running"
+        assert run.headers["location"] == f"/api/scheduled/runs/{run.json()['id']}"
+        assert wait_for_run(api, run.json()["id"])["status"] == "succeeded"
         results = api.get(f"/api/scheduled/runs/{run.json()['id']}/steps").json()
         assert len(results) == 2
         assert "script result" in results[0]["response"]["stdout"]
@@ -93,7 +120,9 @@ def test_mixed_workflow_executes_command_then_agent_and_can_switch_step_type(com
             assert returned["step_type"] == step.get("step_type", "sub_agent")
             assert returned["command"] == step.get("command")
             assert returned["sub_agent_id"] == step.get("sub_agent_id")
-        assert api.post(f"/api/scheduled/run/{workflow_id}").status_code == 200
+        accepted = api.post(f"/api/scheduled/run/{workflow_id}")
+        assert accepted.status_code == 202
+        assert wait_for_run(api, accepted.json()["id"])["status"] == "succeeded"
     finally:
         if workflow_id:
             assert api.delete(f"/api/scheduled/workflows/{workflow_id}").status_code == 204
@@ -115,8 +144,8 @@ def test_command_failure_is_stored_and_stops_later_steps(command_client, monkeyp
     try:
         assert created.json()["total_sub_agents"] == 0
         failed_run = command_client.post(f"/api/scheduled/run/{workflow_id}")
-        assert failed_run.status_code == 502
-        run = command_client.get("/api/scheduled/runs", params={"workflow_id": workflow_id}).json()[0]
+        assert failed_run.status_code == 202
+        run = wait_for_run(command_client, failed_run.json()["id"])
         assert run["status"] == "failed"
         steps = command_client.get(f"/api/scheduled/runs/{run['id']}/steps").json()
         assert len(steps) == 1
@@ -147,12 +176,40 @@ def test_scheduled_command_runs_only_once_per_occurrence(command_client):
         endpoint = f"/api/scheduled/run/{workflow_id}?schedule_id={schedule.json()['id']}"
         first = command_client.post(endpoint)
         second = command_client.post(endpoint)
-        assert first.status_code == second.status_code == 200
+        assert first.status_code == second.status_code == 202
         assert first.json()["id"] == second.json()["id"]
+        assert wait_for_run(command_client, first.json()["id"])["status"] == "succeeded"
         results = command_client.get(f"/api/scheduled/runs/{first.json()['id']}/steps").json()
         assert len(results) == 1
         assert "scheduled" in results[0]["response"]["stdout"]
     finally:
+        assert command_client.delete(f"/api/scheduled/workflows/{workflow_id}").status_code == 204
+
+
+def test_active_background_workflow_cannot_be_deleted_or_have_steps_replaced(command_client, monkeypatch):
+    release = asyncio.Event()
+
+    async def command(*args):
+        await release.wait()
+        return {"stdout": "done", "exit_code": 0}
+
+    monkeypatch.setattr(execution, "execute_command", command)
+    created = command_client.post("/api/scheduled/workflows", headers=HEADERS, json={
+        "name": "Active workflow guard test",
+        "steps": [{"step_type": "command", "command": "echo test"}],
+    })
+    assert created.status_code == 201
+    workflow_id = created.json()["id"]
+    accepted = command_client.post(f"/api/scheduled/run/{workflow_id}")
+    try:
+        assert accepted.status_code == 202
+        assert command_client.delete(f"/api/scheduled/workflows/{workflow_id}").status_code == 409
+        assert command_client.patch(f"/api/scheduled/workflows/{workflow_id}", headers=HEADERS, json={
+            "steps": [{"step_type": "command", "command": "echo changed"}],
+        }).status_code == 409
+    finally:
+        command_client.portal.call(release.set)
+        assert wait_for_run(command_client, accepted.json()["id"])["status"] == "succeeded"
         assert command_client.delete(f"/api/scheduled/workflows/{workflow_id}").status_code == 204
 
 

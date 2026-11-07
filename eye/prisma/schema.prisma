@@ -145,6 +145,10 @@ model WorkerTaskRun {
   worker_id      String      @db.Uuid
   celery_task_id String      @unique @db.VarChar(160)
   job_url        String      @db.VarChar(2048)
+  company_name   String      @default("NA") @db.VarChar(500)
+  job_title      String      @default("NA") @db.VarChar(500)
+  package        String      @default("NA") @db.VarChar(500)
+  platform       String      @default("NA") @db.VarChar(160)
   payload        Json
   result         Json?
   status         String      @db.VarChar(20)
@@ -157,11 +161,43 @@ model WorkerTaskRun {
   finished_at    DateTime?   @db.Timestamptz(6)
   worker         Worker      @relation(fields: [worker_id], references: [id])
   logs           WorkerLog[]
+  application    JobApplication?
+  skip           WorkerSkip?
 
   @@index([worker_id])
   @@index([status])
   @@index([started_at])
   @@map("worker_task_runs")
+}
+
+model JobApplication {
+  job_url      String         @id @db.VarChar(2048)
+  company_name String         @default("NA") @db.VarChar(500)
+  job_title    String         @default("NA") @db.VarChar(500)
+  package      String         @default("NA") @db.VarChar(500)
+  platform     String         @default("NA") @db.VarChar(160)
+  first_run_id String?        @unique @db.Uuid
+  status       String         @default("running") @db.VarChar(20)
+  reason       String?        @db.Text
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  modified_at  DateTime       @updatedAt @db.Timestamptz(6)
+  first_run    WorkerTaskRun? @relation(fields: [first_run_id], references: [id], onDelete: SetNull)
+
+  @@map("job_applications")
+}
+
+model WorkerSkip {
+  id          String        @id @default(uuid()) @db.Uuid
+  task_run_id String        @unique @db.Uuid
+  job_url     String        @db.VarChar(2048)
+  reason      String        @db.VarChar(30)
+  details     String        @db.Text
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  task_run    WorkerTaskRun @relation(fields: [task_run_id], references: [id], onDelete: Cascade)
+
+  @@index([job_url])
+  @@index([reason])
+  @@map("worker_skips")
 }
 
 model WorkerLog {

@@ -200,6 +200,21 @@ async def get_session(session_id: UUID, request: Request) -> dict[str, Any]:
     return {key: value for key, value in metadata.items() if key != "owner"}
 
 
+@app.delete("/sessions/{session_id}", status_code=204, response_class=Response)
+async def delete_session(session_id: UUID, request: Request) -> Response:
+    manager: BrowserSessionManager = request.app.state.sessions
+    try:
+        await manager.terminate(str(session_id))
+    except SessionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="Browser session store unavailable; retry deletion") from exc
+    except Exception as exc:
+        logger.exception("Could not close browser session %s", session_id)
+        raise HTTPException(status_code=500, detail="Could not close browser session; retry deletion") from exc
+    return Response(status_code=204)
+
+
 @app.get("/instructions/{task_id}")
 async def get_instruction(task_id: UUID, request: Request) -> dict[str, Any]:
     manager: BrowserSessionManager = request.app.state.sessions

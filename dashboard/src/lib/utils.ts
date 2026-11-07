@@ -47,5 +47,6 @@ export function runTone(status: string) {
   if (status === "succeeded") return "success" as const;
   if (status === "failed") return "danger" as const;
   if (status === "running") return "info" as const;
+  if (status === "skipped") return "warning" as const;
   return "neutral" as const;
 }

@@ -65,11 +65,11 @@ class SessionBrowsers:
             raise
 
     async def destroy(self, session_id: str, browser: Browser | None) -> None:
-        try:
-            if browser is not None:
-                # stop()/close() deliberately leave keep_alive browsers running; kill is explicit.
-                await browser.kill()
-        finally:
-            profile = self.profiles.pop(session_id, None)
-            if profile is not None:
-                await asyncio.to_thread(shutil.rmtree, profile, True)
+        if browser is not None:
+            # stop()/close() deliberately leave keep_alive browsers running; kill is explicit.
+            await browser.kill()
+        profile = self.profiles.get(session_id)
+        if profile is not None:
+            with suppress(FileNotFoundError):
+                await asyncio.to_thread(shutil.rmtree, profile)
+            self.profiles.pop(session_id, None)

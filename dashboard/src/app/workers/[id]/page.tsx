@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, ExternalLink, ListChecks, Percent, TriangleAlert } from "lucide-react";
+import { Activity, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, ExternalLink, ListChecks, Percent, SkipForward, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";
 
@@ -42,11 +42,12 @@ export default function WorkerDashboardPage({ params }: { params: Promise<{ id: 
         description={`Registered ${formatDateTime(worker.created_at)} · Refreshes every 10 seconds`}
         action={<StatusBadge tone={worker.enabled ? "success" : "neutral"}>{worker.enabled ? "Enabled" : "Disabled"}</StatusBadge>}
       />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricCard label="Total tasks" value={metrics.total_runs} detail="All recorded executions" icon={<ListChecks className="size-5" />} />
         <MetricCard label="Running" value={metrics.running} detail="Tasks currently marked running" icon={<Activity className="size-5" />} accent="violet" />
         <MetricCard label="Succeeded" value={metrics.succeeded} detail="Completed successfully" icon={<CheckCircle2 className="size-5" />} accent="mint" />
         <MetricCard label="Failed" value={metrics.failed} detail="Terminal task failures" icon={<TriangleAlert className="size-5" />} accent="peach" />
+        <MetricCard label="Skipped" value={metrics.skipped} detail="Duplicates and red-flag jobs" icon={<SkipForward className="size-5" />} accent="violet" />
         <MetricCard label="Success rate" value={metrics.success_rate === null ? "—" : `${metrics.success_rate}%`} detail="Of succeeded and failed tasks" icon={<Percent className="size-5" />} accent="mint" />
       </div>
       <Card className="mt-6 overflow-hidden">
@@ -62,12 +63,13 @@ export default function WorkerDashboardPage({ params }: { params: Promise<{ id: 
             <option value="running">Running</option>
             <option value="succeeded">Succeeded</option>
             <option value="failed">Failed</option>
+            <option value="skipped">Skipped</option>
           </select>
         </div>
         {runs.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-xs">
-              <thead className="bg-[var(--soft)] text-[var(--muted)]"><tr>{["Task", "Status", "Job", "Started", "Failed step", "Duration"].map((label) => <th key={label} scope="col" className="px-5 py-3 font-semibold">{label}</th>)}</tr></thead>
+            <table className="w-full min-w-[1180px] text-left text-xs">
+              <thead className="bg-[var(--soft)] text-[var(--muted)]"><tr>{["Task", "Status", "Company", "Job title", "Package (INR)", "Platform", "Job URL", "Started", "Failed step", "Duration"].map((label) => <th key={label} scope="col" className="px-5 py-3 font-semibold">{label}</th>)}</tr></thead>
               <tbody>
                 {runs.map((run) => {
                   const duration = run.finished_at ? Math.max(0, Math.round((new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1_000)) : null;
@@ -75,6 +77,10 @@ export default function WorkerDashboardPage({ params }: { params: Promise<{ id: 
                     <tr key={run.id} className="border-t border-[var(--line)] transition hover:bg-[var(--soft)]">
                       <td className="px-5 py-4"><button onClick={() => setSelectedRun(run.id)} className="whitespace-nowrap font-mono font-semibold text-[var(--blue)] underline-offset-4 hover:underline" aria-label={`View task ${run.id}`}>{shortId(run.celery_task_id)}</button></td>
                       <td className="px-5 py-4"><StatusBadge tone={runTone(run.status)}>{run.status}</StatusBadge></td>
+                      <td className="min-w-32 max-w-48 break-words px-5 py-4 font-semibold">{run.company_name || "NA"}</td>
+                      <td className="min-w-40 max-w-56 break-words px-5 py-4">{run.job_title || "NA"}</td>
+                      <td className="min-w-28 max-w-44 break-words px-5 py-4">{run.package || "NA"}</td>
+                      <td className="px-5 py-4">{run.platform || "NA"}</td>
                       <td className="max-w-56 px-5 py-4">{/^https?:\/\//i.test(run.job_url) ? <a href={run.job_url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--blue)]" title={run.job_url}><span className="max-w-44 truncate">{run.job_url}</span><ExternalLink className="size-3 shrink-0" /></a> : <span className="break-all">{run.job_url}</span>}</td>
                       <td className="whitespace-nowrap px-5 py-4 text-[var(--muted)]">{formatDateTime(run.started_at)}</td>
                       <td className="px-5 py-4 font-mono">{run.step_failed ?? "—"}</td>

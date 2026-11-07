@@ -11,6 +11,7 @@ from app.schemas import (
     WorkerLogResponse,
     WorkerMetricsResponse,
     WorkerResponse,
+    WorkerSkipResponse,
     WorkerTaskRunResponse,
 )
 
@@ -66,10 +67,22 @@ async def list_worker_logs(
     return [WorkerLogResponse.model_validate(log) for log in logs]
 
 
+@router.get("/runs/{task_run_id}/skip", response_model=WorkerSkipResponse | None)
+async def get_worker_skip(
+    task_run_id: UUID,
+    db: Prisma = Depends(get_database),
+) -> WorkerSkipResponse | None:
+    run_id = str(task_run_id)
+    if await db.workertaskrun.find_unique(where={"id": run_id}) is None:
+        raise HTTPException(status_code=404, detail="Worker task run not found")
+    skip = await db.workerskip.find_unique(where={"task_run_id": run_id})
+    return WorkerSkipResponse.model_validate(skip) if skip is not None else None
+
+
 @router.get("/{worker_id}/dashboard", response_model=WorkerDashboardResponse)
 async def get_worker_dashboard(
     worker_id: UUID,
-    status: Literal["running", "succeeded", "failed"] | None = Query(default=None),
+    status: Literal["running", "succeeded", "failed", "skipped"] | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Prisma = Depends(get_database),
@@ -105,6 +118,7 @@ async def get_worker_dashboard(
             running=counts.get("running", 0),
             succeeded=succeeded,
             failed=failed,
+            skipped=counts.get("skipped", 0),
             success_rate=round(succeeded / completed * 100, 1) if completed else None,
         ),
         runs=[WorkerTaskRunResponse.model_validate(run) for run in runs],

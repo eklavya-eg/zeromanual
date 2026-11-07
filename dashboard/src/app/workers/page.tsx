@@ -65,7 +65,7 @@ export default function WorkersPage() {
           ))}
         </div>
       ) : (
-        <Card><EmptyState icon={<Cpu className="size-5" />} title={workers.length ? "No matching workers" : "No workers registered yet"} description={workers.length ? "Try another name or worker ID." : "Workers register when their first task starts. Task history and logs will appear here automatically."} /></Card>
+        <Card><EmptyState icon={<Cpu className="size-5" />} title={workers.length ? "No matching workers" : "No workers registered yet"} description={workers.length ? "Try another name or worker ID." : "Start the Celery worker or run its registration command. Registration no longer requires a first task."} /></Card>
       )}
       <p className="mt-5 text-xs leading-5 text-[var(--muted)]">Enabled reflects worker registration, not a live Celery heartbeat. Open a worker to inspect running and completed tasks.</p>
     </div>

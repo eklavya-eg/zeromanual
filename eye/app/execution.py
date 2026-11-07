@@ -1,9 +1,10 @@
+import asyncio
 from typing import Any
 
 import httpx
 from prisma import Json, Prisma
 from prisma.errors import UniqueViolationError
-from prisma.models import WorkflowRun
+from prisma.models import Workflow, WorkflowRun
 
 from app.commands import CommandExecutionError, execute_command
 from app.models import utc_now
@@ -45,8 +46,8 @@ async def _claim_run(
         if existing is not None:
             if existing.status in {"running", "succeeded"}:
                 return existing, False
-            retried = await db.workflowrun.update(
-                where={"id": existing.id},
+            claimed = await db.workflowrun.update_many(
+                where={"id": existing.id, "status": existing.status, "attempt_count": existing.attempt_count},
                 data={
                     "status": "running",
                     "attempt_count": {"increment": 1},
@@ -55,7 +56,8 @@ async def _claim_run(
                     "error": None,
                 },
             )
-            return retried, True
+            retried = await db.workflowrun.find_unique_or_raise(where={"id": existing.id})
+            return retried, claimed == 1
 
     data = {
         "workflow_id": workflow_id,
@@ -78,29 +80,38 @@ async def _claim_run(
         return existing, False
 
 
+async def prepare_workflow_run(
+    db: Prisma,
+    workflow_id: str,
+    schedule_id: str | None = None,
+    occurrence: DueOccurrence | None = None,
+) -> tuple[Workflow, WorkflowRun, bool]:
+    workflow = await db.workflow.find_unique(where={"id": workflow_id})
+    if workflow is None:
+        raise WorkflowExecutionError("Workflow not found")
+    if not workflow.enabled:
+        raise WorkflowExecutionError("Workflow is disabled")
+    run, should_execute = await _claim_run(db, workflow_id, schedule_id, occurrence)
+    return workflow, run, should_execute
+
+
 async def execute_workflow(
     db: Prisma,
     workflow_id: str,
     schedule_id: str | None = None,
     occurrence: DueOccurrence | None = None,
 ) -> WorkflowRun:
-    workflow = await db.workflow.find_unique(where={"id": workflow_id})
-    if workflow is None:
-        raise WorkflowExecutionError("Workflow not found")
-    if not workflow.enabled:
-        raise WorkflowExecutionError("Workflow is disabled")
+    _, run, should_execute = await prepare_workflow_run(db, workflow_id, schedule_id, occurrence)
+    return await execute_claimed_workflow(db, run) if should_execute else run
 
-    run, should_execute = await _claim_run(db, workflow_id, schedule_id, occurrence)
-    if not should_execute:
-        return run
 
-    steps = await db.workflowstep.find_many(
-        where={"workflow_id": workflow_id},
-        include={"sub_agent": True},
-        order={"position": "asc"},
-    )
-
+async def execute_claimed_workflow(db: Prisma, run: WorkflowRun) -> WorkflowRun:
     try:
+        steps = await db.workflowstep.find_many(
+            where={"workflow_id": run.workflow_id},
+            include={"sub_agent": True},
+            order={"position": "asc"},
+        )
         if not steps:
             raise WorkflowExecutionError("Workflow has no steps")
 
@@ -135,15 +146,17 @@ async def execute_workflow(
                         "finished_at": utc_now(),
                     },
                 )
-            except Exception as exc:
+            except (Exception, asyncio.CancelledError) as exc:
                 failure_data: dict[str, Any] = {
                     "status": "failed",
-                    "error": str(exc)[:4_000],
+                    "error": "Workflow interrupted by server shutdown" if isinstance(exc, asyncio.CancelledError) else str(exc)[:4_000],
                     "finished_at": utc_now(),
                 }
                 if isinstance(exc, CommandExecutionError):
                     failure_data["response"] = Json(exc.result)
                 await db.steprun.update(where={"id": step_run.id}, data=failure_data)
+                if isinstance(exc, asyncio.CancelledError):
+                    raise
                 raise WorkflowExecutionError(
                     f"Step {step.position} ({step.step_type}) failed: {exc}"
                 ) from exc
@@ -152,15 +165,15 @@ async def execute_workflow(
             where={"id": run.id},
             data={"status": "succeeded", "finished_at": utc_now()},
         )
-    except Exception as exc:
+    except (Exception, asyncio.CancelledError) as exc:
         await db.workflowrun.update(
             where={"id": run.id},
             data={
                 "status": "failed",
-                "error": str(exc)[:4_000],
+                "error": "Workflow interrupted by server shutdown" if isinstance(exc, asyncio.CancelledError) else str(exc)[:4_000],
                 "finished_at": utc_now(),
             },
         )
-        if isinstance(exc, WorkflowExecutionError):
+        if isinstance(exc, (WorkflowExecutionError, asyncio.CancelledError)):
             raise
         raise WorkflowExecutionError("Workflow execution failed") from exc

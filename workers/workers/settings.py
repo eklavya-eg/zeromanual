@@ -19,6 +19,8 @@ class JobApplicationPayload(BaseModel):
     job_url: HttpUrl
     job_title: str = Field(min_length=1, max_length=500)
     company_name: str = Field(min_length=1, max_length=500)
+    package: str = Field(default="NA", min_length=1, max_length=500)
+    platform: str = Field(default="NA", min_length=1, max_length=160)
     retry: RetryPolicy = Field(default_factory=RetryPolicy)
     profile_path: str | None = None
     resume_path: str | None = None
@@ -28,6 +30,17 @@ class JobApplicationPayload(BaseModel):
     @classmethod
     def strip_job_metadata(cls, value: Any) -> Any:
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("package", "platform", mode="before")
+    @classmethod
+    def normalize_optional_metadata(cls, value: Any) -> Any:
+        if value is None:
+            return "NA"
+        if isinstance(value, str):
+            value = value.strip()
+            if value.lower() in {"", "na", "n/a", "not disclosed", "not mentioned"}:
+                return "NA"
+        return value
 
 
 class Settings(BaseModel):

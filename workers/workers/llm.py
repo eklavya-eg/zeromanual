@@ -1,10 +1,29 @@
 import os
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
+    schema = model.model_json_schema()
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            value.pop("default", None)
+            if value.get("type") == "object":
+                value["additionalProperties"] = False
+                value["required"] = list(value.get("properties", {}))
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(schema)
+    return schema
 
 
 class StructuredLLM:
@@ -33,7 +52,7 @@ class StructuredLLM:
                 "json_schema": {
                     "name": schema.__name__,
                     "strict": True,
-                    "schema": schema.model_json_schema(),
+                    "schema": strict_json_schema(schema),
                 },
             },
         )

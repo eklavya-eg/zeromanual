@@ -42,6 +42,8 @@ class BrowserSession:
     queue: deque[Instruction] = field(default_factory=deque)
     active: Instruction | None = None
     runner: asyncio.Task[None] | None = None
+    closing: bool = False
+    termination: asyncio.Task[None] | None = None
     touched_at: float = field(default_factory=monotonic)
 
     def metadata(self) -> dict[str, Any]:
@@ -96,6 +98,8 @@ class BrowserSessionManager:
                 raise SessionConflictError("Browser agent is shutting down")
             metadata = await self.store.get_session(session_id)
             session = self.sessions.get(session_id)
+            if session is not None and session.closing:
+                raise SessionConflictError("Browser session is closing; retry deletion before reusing its UUID")
             if session is not None and metadata is None and session.runner is None:
                 self.sessions.pop(session_id)
                 await self._dispose(session)
@@ -138,6 +142,59 @@ class BrowserSessionManager:
             if session.runner is None:
                 session.runner = asyncio.create_task(self._drain(session))
             return instruction
+
+    async def terminate(self, session_id: str) -> None:
+        async with self.lock:
+            if self.closed:
+                raise SessionConflictError("Browser agent is shutting down")
+            session = self.sessions.get(session_id)
+            if session is None:
+                if not await self.store.purge(session_id, None):
+                    raise SessionConflictError(
+                        "This browser belongs to another service process; close it through its owner"
+                    )
+                return
+            session.closing = True
+            if session.termination is None or session.termination.done():
+                session.termination = asyncio.create_task(self._terminate(session))
+                session.termination.add_done_callback(
+                    lambda task: task.exception() if not task.cancelled() else None
+                )
+            termination = session.termination
+        # Disconnecting the DELETE caller must not leave a half-closed browser.
+        await asyncio.shield(termination)
+
+    async def _terminate(self, session: BrowserSession) -> None:
+        if session.runner is not None:
+            session.runner.cancel()
+            await asyncio.gather(session.runner, return_exceptions=True)
+            session.runner = None
+        pending = ([session.active] if session.active else []) + list(session.queue)
+        session.active = None
+        session.queue.clear()
+        error = RuntimeError("Browser session closed")
+        for instruction in pending:
+            if not instruction.future.done():
+                instruction.future.set_exception(error)
+
+        async def notify_closed(instruction: Instruction) -> None:
+            try:
+                await self.notify(instruction.payload, None, error)
+            except Exception:
+                logger.exception("Callback delivery failed for browser instruction %s", instruction.task_id)
+
+        try:
+            await self.destroy_browser(session.id, session.browser)
+            session.browser = None
+            if not await self.store.purge(session.id, session.owner):
+                async with self.lock:
+                    self.sessions.pop(session.id, None)
+                raise SessionConflictError("Browser session ownership changed; foreign state was not deleted")
+            async with self.lock:
+                self.sessions.pop(session.id, None)
+        finally:
+            # Slow callbacks must not keep the browser alive or recreate purged records.
+            await asyncio.gather(*(notify_closed(instruction) for instruction in pending))
 
     @staticmethod
     def _record(
@@ -207,18 +264,20 @@ class BrowserSessionManager:
                 await self._finish_instruction(session, instruction, response, error)
                 session.active = None
         except asyncio.CancelledError:
-            await self._fail_remaining(session, "Browser session closed")
-            if not self.closed:
-                async with self.lock:
-                    self.sessions.pop(session.id, None)
-                    await self._dispose(session)
+            if not session.closing:
+                await self._fail_remaining(session, "Browser session closed")
+                if not self.closed:
+                    async with self.lock:
+                        self.sessions.pop(session.id, None)
+                        await self._dispose(session)
             raise
         except Exception:
             logger.exception("Browser session runner failed: %s", session.id)
-            await self._fail_remaining(session, "Browser session interrupted; check Redis availability")
-            async with self.lock:
-                self.sessions.pop(session.id, None)
-                await self._dispose(session)
+            if not session.closing:
+                await self._fail_remaining(session, "Browser session interrupted; check Redis availability")
+                async with self.lock:
+                    self.sessions.pop(session.id, None)
+                    await self._dispose(session)
         finally:
             session.runner = None
 
@@ -226,10 +285,14 @@ class BrowserSessionManager:
         pending = ([session.active] if session.active else []) + list(session.queue)
         session.queue.clear()
         session.active = None
-        for instruction in pending:
+        for index, instruction in enumerate(pending):
             error = RuntimeError(message)
             try:
                 await self._finish_instruction(session, instruction, None, error)
+            except asyncio.CancelledError:
+                # Manual termination must still see work interrupted during error reporting.
+                session.queue.extendleft(reversed(pending[index:]))
+                raise
             except Exception:
                 logger.exception("Could not record interrupted instruction %s", instruction.task_id)
             finally:
@@ -249,6 +312,8 @@ class BrowserSessionManager:
     async def cleanup(self) -> None:
         async with self.lock:
             for session in list(self.sessions.values()):
+                if session.closing:
+                    continue
                 if session.runner is not None:
                     try:
                         await self._update(session)
@@ -282,6 +347,9 @@ class BrowserSessionManager:
             self.maintenance.cancel()
             with suppress(asyncio.CancelledError):
                 await self.maintenance
+        terminations = [session.termination for session in sessions if session.termination is not None]
+        await asyncio.gather(*terminations, return_exceptions=True)
+        sessions = list(self.sessions.values())
         runners = [session.runner for session in sessions if session.runner is not None]
         for runner in runners:
             runner.cancel()

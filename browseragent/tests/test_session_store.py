@@ -50,3 +50,50 @@ def test_redis_session_ownership_expiry_and_instruction_records():
             await store.close()
 
     asyncio.run(scenario())
+
+
+def test_redis_purge_removes_all_session_records_and_preserves_other_owners():
+    if os.getenv("RUN_REDIS_TESTS") != "1":
+        pytest.skip("Set RUN_REDIS_TESTS=1 with Redis running")
+
+    async def scenario():
+        store = SessionStore(
+            os.getenv("BROWSER_REDIS_URL", "redis://127.0.0.1:6379/3"),
+            namespace=f"test:browseragent:{uuid4()}",
+        )
+        session_id, other_id = str(uuid4()), str(uuid4())
+        metadata = {"id": session_id, "owner": "owner-1"}
+        records = [
+            {"id": session_id, "task_id": str(uuid4()), "status": status}
+            for status in ["completed", "failed", "running", "queued"]
+        ]
+        unrelated = {"id": other_id, "task_id": str(uuid4()), "status": "completed"}
+        try:
+            assert await store.claim(metadata, 1800)
+            assert await store.claim({"id": other_id, "owner": "other"}, 1800)
+            for record in [*records, unrelated]:
+                await store.save_instruction(record, 1800)
+            assert not await store.purge(session_id, "foreign")
+            assert not await store.purge(session_id, None)
+            assert await store.get_session(session_id) == metadata
+            for record in records:
+                assert await store.get_instruction(record["task_id"]) == record
+            assert await store.purge(session_id, "owner-1")
+            assert await store.get_session(session_id) is None
+            for record in records:
+                assert await store.get_instruction(record["task_id"]) is None
+            assert await store.get_instruction(unrelated["task_id"]) == unrelated
+            assert await store.get_session(other_id) is not None
+            assert await store.purge(session_id, None)
+
+            # Expired metadata must not leave completed instruction history behind.
+            await store.save_instruction(records[0], 1800)
+            assert await store.purge(session_id, None)
+            assert await store.get_instruction(records[0]["task_id"]) is None
+        finally:
+            keys = [key async for key in store.redis.scan_iter(match=f"{store.namespace}:*")]
+            if keys:
+                await store.redis.delete(*keys)
+            await store.close()
+
+    asyncio.run(scenario())

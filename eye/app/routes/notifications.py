@@ -6,13 +6,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Response, WebSocket, WebSocketDisconnect, status
 from redis.exceptions import RedisError
 
-from app.notifications import NOTIFICATION_CHANNEL, notification_store
-from app.schemas import SubAgentCallback, SubAgentNotification
+from app.notifications import notification_store
+from app.schemas import SubAgentCallback, SubAgentNotification, WorkflowRunNotification
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-@router.get("", response_model=list[SubAgentNotification])
+@router.get("", response_model=list[SubAgentNotification | WorkflowRunNotification])
 async def list_notifications() -> list[dict[str, Any]]:
     try:
         return await notification_store.list_notifications()
@@ -46,7 +46,7 @@ async def receive_sub_agent_result(payload: SubAgentCallback) -> Response:
 async def notification_socket(websocket: WebSocket) -> None:
     try:
         async with notification_store.client().pubsub() as pubsub:
-            await pubsub.subscribe(NOTIFICATION_CHANNEL)
+            await pubsub.subscribe(notification_store.channel)
             await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
             await websocket.accept()
             receive_task = asyncio.create_task(websocket.receive())

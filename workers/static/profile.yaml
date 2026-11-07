@@ -94,3 +94,6 @@ education:
     completion_year: 2019
 
 achievements: []
+
+redflags: ["I dont want to work as data scientist or data analyst or any data-related roles, Also i dont want to work for frontend like roles.", "Any job mentioning that their budget for the role is less than 11 LPA, Also if job role package is not given dont consider it as redflag."]
+instructions: ["my last working day is 15th december 2026 and i'm serving notice period", "I can relocate anywhere in India, right now i'm in Noida, India.", "For any questions where they are asking for experience in specific technoloy then mention 2years"]

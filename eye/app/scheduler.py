@@ -6,12 +6,15 @@ from datetime import datetime
 from app.database import database
 from app.execution import WorkflowExecutionError, execute_workflow
 from app.schedule_engine import due_occurrence
+from app.workflow_runs import WorkflowRunManager
 
 logger = logging.getLogger(__name__)
 POLL_SECONDS = max(5, int(os.getenv("SCHEDULER_POLL_SECONDS", "30")))
 
 
-async def reconcile_due_schedules(now: datetime | None = None) -> list[str]:
+async def reconcile_due_schedules(
+    now: datetime | None = None, *, manager: WorkflowRunManager | None = None,
+) -> list[str]:
     current_time = now or datetime.now()
     schedules = await database.schedule.find_many(
         where={"enabled": True},
@@ -26,7 +29,8 @@ async def reconcile_due_schedules(now: datetime | None = None) -> list[str]:
         if occurrence is None:
             continue
         try:
-            run = await execute_workflow(
+            execute = manager.submit if manager is not None else execute_workflow
+            run = await execute(
                 database,
                 workflow_id=schedule.workflow_id,
                 schedule_id=schedule.id,
@@ -38,10 +42,10 @@ async def reconcile_due_schedules(now: datetime | None = None) -> list[str]:
     return triggered_runs
 
 
-async def schedule_monitor(stop_event: asyncio.Event) -> None:
+async def schedule_monitor(stop_event: asyncio.Event, manager: WorkflowRunManager) -> None:
     while not stop_event.is_set():
         try:
-            await reconcile_due_schedules()
+            await reconcile_due_schedules(manager=manager)
         except Exception:
             logger.exception("Schedule reconciliation failed")
 

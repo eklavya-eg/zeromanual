@@ -5,11 +5,22 @@ from time import time
 from typing import Any
 from uuid import uuid4
 
+from prisma.models import WorkflowRun
 from redis.asyncio import Redis
 
 JOB_TTL_SECONDS = int(os.getenv("SUB_AGENT_JOB_TTL_SECONDS", "86400"))
 NOTIFICATION_LIMIT = int(os.getenv("SUB_AGENT_NOTIFICATION_LIMIT", "100"))
 NOTIFICATION_CHANNEL = "eye:sub-agent-notifications"
+PUBLISH_WORKFLOW = """
+if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+redis.call('SET', KEYS[1], '1', 'EX', ARGV[1])
+redis.call('ZADD', KEYS[2], ARGV[2], ARGV[3])
+redis.call('ZREMRANGEBYSCORE', KEYS[2], 0, tonumber(ARGV[2]) - tonumber(ARGV[1]))
+redis.call('ZREMRANGEBYRANK', KEYS[2], 0, -(tonumber(ARGV[4]) + 1))
+redis.call('EXPIRE', KEYS[2], ARGV[1])
+redis.call('PUBLISH', KEYS[3], ARGV[3])
+return 1
+"""
 
 
 def utc_timestamp() -> str:
@@ -17,7 +28,9 @@ def utc_timestamp() -> str:
 
 
 class NotificationStore:
-    def __init__(self) -> None:
+    def __init__(self, namespace: str = "eye") -> None:
+        self.namespace = namespace
+        self.channel = f"{namespace}:sub-agent-notifications"
         self._redis: Redis | None = None
 
     def client(self) -> Redis:
@@ -25,6 +38,8 @@ class NotificationStore:
             self._redis = Redis.from_url(
                 os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
                 decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=25,
             )
         return self._redis
 
@@ -51,18 +66,18 @@ class NotificationStore:
             "created_at": utc_timestamp(),
         }
         await self.client().set(
-            f"eye:sub-agent-job:{job_id}",
+            f"{self.namespace}:sub-agent-job:{job_id}",
             json.dumps(job),
             ex=JOB_TTL_SECONDS,
         )
         return job_id, callback_token
 
     async def get_job(self, job_id: str) -> dict[str, Any] | None:
-        value = await self.client().get(f"eye:sub-agent-job:{job_id}")
+        value = await self.client().get(f"{self.namespace}:sub-agent-job:{job_id}")
         return json.loads(value) if value else None
 
     async def remove_job(self, job_id: str) -> None:
-        await self.client().delete(f"eye:sub-agent-job:{job_id}")
+        await self.client().delete(f"{self.namespace}:sub-agent-job:{job_id}")
 
     async def complete_job(
         self,
@@ -73,7 +88,7 @@ class NotificationStore:
         error: str | None,
     ) -> dict[str, Any] | None:
         job_id = str(job["job_id"])
-        completion_key = f"eye:sub-agent-job-completed:{job_id}"
+        completion_key = f"{self.namespace}:sub-agent-job-completed:{job_id}"
         claimed = await self.client().set(
             completion_key,
             "1",
@@ -95,20 +110,39 @@ class NotificationStore:
             "completed_at": utc_timestamp(),
         }
         encoded = json.dumps(notification)
-        history_key = "eye:sub-agent-notification-history"
+        history_key = f"{self.namespace}:sub-agent-notification-history"
         completed_at = time()
         async with self.client().pipeline(transaction=True) as pipeline:
-            pipeline.delete(f"eye:sub-agent-job:{job_id}")
+            pipeline.delete(f"{self.namespace}:sub-agent-job:{job_id}")
             pipeline.zadd(history_key, {encoded: completed_at})
             pipeline.zremrangebyscore(history_key, 0, completed_at - JOB_TTL_SECONDS)
             pipeline.zremrangebyrank(history_key, 0, -(NOTIFICATION_LIMIT + 1))
             pipeline.expire(history_key, JOB_TTL_SECONDS)
-            pipeline.publish(NOTIFICATION_CHANNEL, encoded)
+            pipeline.publish(self.channel, encoded)
             await pipeline.execute()
         return notification
 
+    async def publish_workflow_run(self, run: WorkflowRun, workflow_name: str) -> None:
+        notification = {
+            "kind": "workflow_run",
+            "run_id": run.id,
+            "workflow_id": run.workflow_id,
+            "workflow_name": workflow_name,
+            "attempt_count": run.attempt_count,
+            "status": run.status,
+            "error": run.error,
+            "created_at": run.started_at.isoformat(),
+            "completed_at": run.finished_at.isoformat() if run.finished_at else utc_timestamp(),
+        }
+        await self.client().eval(
+            PUBLISH_WORKFLOW, 3,
+            f"{self.namespace}:workflow-run-completed:{run.id}:{run.attempt_count}",
+            f"{self.namespace}:sub-agent-notification-history", self.channel,
+            JOB_TTL_SECONDS, time(), json.dumps(notification), NOTIFICATION_LIMIT,
+        )
+
     async def list_notifications(self) -> list[dict[str, Any]]:
-        history_key = "eye:sub-agent-notification-history"
+        history_key = f"{self.namespace}:sub-agent-notification-history"
         await self.client().zremrangebyscore(
             history_key,
             0,

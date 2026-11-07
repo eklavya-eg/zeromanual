@@ -2,7 +2,7 @@ import time
 from collections.abc import Callable
 from typing import ParamSpec, TypeVar
 
-from workers.settings import RetryPolicy
+from workflows.settings import RetryPolicy
 
 P = ParamSpec("P")
 R = TypeVar("R")

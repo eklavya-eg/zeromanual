@@ -92,6 +92,7 @@ export type AgentTrialResponse = {
 };
 
 export type SubAgentNotification = {
+  kind?: "sub_agent";
   job_id: string;
   agent_id: string;
   agent_name: string;
@@ -103,9 +104,23 @@ export type SubAgentNotification = {
   completed_at: string;
 };
 
+export type WorkflowRunNotification = {
+  kind: "workflow_run";
+  run_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  attempt_count: number;
+  status: "succeeded" | "failed";
+  error: string | null;
+  created_at: string;
+  completed_at: string;
+};
+
+export type AppNotification = SubAgentNotification | WorkflowRunNotification;
+
 export type NotificationSocketMessage =
   | { type: "ping" }
-  | { type: "notification"; data: SubAgentNotification };
+  | { type: "notification"; data: AppNotification };
 
 export type Worker = {
   id: string;
@@ -120,6 +135,10 @@ export type WorkerTaskRun = {
   worker_id: string;
   celery_task_id: string;
   job_url: string;
+  company_name: string;
+  job_title: string;
+  package: string;
+  platform: string;
   payload: Record<string, unknown>;
   result: Record<string, unknown> | null;
   status: string;
@@ -139,12 +158,22 @@ export type WorkerDashboard = {
     running: number;
     succeeded: number;
     failed: number;
+    skipped: number;
     success_rate: number | null;
   };
   runs: WorkerTaskRun[];
   total: number;
   page: number;
   page_size: number;
+};
+
+export type WorkerSkip = {
+  id: string;
+  task_run_id: string;
+  job_url: string;
+  reason: string;
+  details: string;
+  created_at: string;
 };
 
 export type WorkerLog = {

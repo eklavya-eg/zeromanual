@@ -17,6 +17,10 @@ def test_worker_observability_api(client) -> None:
                     "worker_id": worker.id,
                     "celery_task_id": str(uuid4()),
                     "job_url": "https://example.com/job",
+                    "company_name": "Example Company",
+                    "job_title": "Backend Engineer",
+                    "package": "INR 12–18 LPA",
+                    "platform": "Naukri",
                     "payload": Json({"job_url": "https://example.com/job"}),
                     "status": "failed",
                     "failed": True,
@@ -52,6 +56,7 @@ def test_worker_observability_api(client) -> None:
             "running": 0,
             "succeeded": 0,
             "failed": 1,
+            "skipped": 0,
             "success_rate": 0.0,
         }
         assert data["total"] == 1
@@ -62,8 +67,17 @@ def test_worker_observability_api(client) -> None:
         assert runs.json()[0]["step_failed"] == "apply_to_job"
         assert run.status_code == 200
         assert run.json()["failed"] is True
+        expected_job = {
+            "company_name": "Example Company", "job_title": "Backend Engineer",
+            "job_url": "https://example.com/job", "package": "INR 12–18 LPA", "platform": "Naukri",
+        }
+        for record in [run.json(), runs.json()[0], data["runs"][0]]:
+            assert {field: record[field] for field in expected_job} == expected_job
         assert logs.status_code == 200
         assert logs.json()[0]["message"] == "Browser unavailable"
+        skip = client.get(f"/api/workers/runs/{run_id}/skip")
+        assert skip.status_code == 200
+        assert skip.json() is None
     finally:
         async def cleanup() -> None:
             db = Prisma()

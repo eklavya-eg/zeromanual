@@ -142,11 +142,40 @@ Content-Type: application/json
 
 For yearly recurrence, provide both `month` and `day_of_month`. Add multiple schedule rows to give one workflow multiple times or ranges. Modify a schedule with `PATCH /api/scheduled/schedules/{schedule_id}`.
 
-## Manual invocation behavior
+## Manual sub-agent invocation behavior
 
-Manual invocations are not written to PostgreSQL. Eye creates an expiring Redis job, adds a protected `_eye` callback envelope to the payload, and returns `202 Accepted` with a task ID. The sub-agent runs in the background and posts its result to the webhook. Eye retains a bounded, expiring notification list in Redis and publishes the result to connected dashboard WebSockets.
+Standalone sub-agent invocations are not written to PostgreSQL. Eye creates an expiring Redis job, adds a protected `_eye` callback envelope to the payload, and returns `202 Accepted` with a task ID. The sub-agent runs in the background and posts its result to the webhook. Eye retains a bounded, expiring notification list in Redis and publishes the result to connected dashboard WebSockets.
 
 For Browser Agent continuation, include an `id` UUID in the manual payload. The Browser Agent reuses that browser and queues instructions when it is busy; Eye accepts both `accepted` and `queued` dispatch states and keeps webhook job-ID correlation unchanged. Session TTL, queueing, and result APIs are described in the [Browser Agent guide](../browseragent/README.md#browser-continuation).
+
+## Asynchronous workflow invocation
+
+`POST /api/scheduled/run/{workflow_id}` now returns **202 Accepted** as soon as the run is persisted in PostgreSQL, with the run UUID in `id`, initial `status: "running"`, and a `Location: /api/scheduled/runs/{id}` header. It does **not** wait for shell commands or sub-agents to finish, avoiding gateway timeouts for long workflows. This applies to command-only, agent-only, and mixed workflows, including Windows schedule callbacks.
+
+The response retains the existing run-record fields. Deleting a workflow or replacing its steps while a run is active returns 409, so accepted executions retain their definitions and history. A command that fails after acceptance does not change the already-returned 202 into an HTTP error. Instead, the run and failed step record the error, stdout/stderr, exit code and timeout details. Read `GET /api/scheduled/runs/{id}` and `GET /api/scheduled/runs/{id}/steps` for authoritative status/output.
+
+On success or failure, Eye publishes a workflow notification through the existing `WS /api/notifications/ws` stream:
+
+```json
+{
+  "type": "notification",
+  "data": {
+    "kind": "workflow_run",
+    "run_id": "<run-uuid>",
+    "workflow_id": "<workflow-uuid>",
+    "workflow_name": "Daily Job Discovery",
+    "attempt_count": 1,
+    "status": "succeeded",
+    "error": null,
+    "created_at": "2026-11-07T12:00:00+00:00",
+    "completed_at": "2026-11-07T12:05:00+00:00"
+  }
+}
+```
+
+`status` is `succeeded` or `failed`. Workflow notifications share the bounded Redis notification history with existing sub-agent notifications, whose format remains unchanged. Publication is atomic and deduplicated per run/attempt. Reconnecting clients can recover notifications from `GET /api/notifications`; the dashboard refreshes run status and links directly to command output. A Redis outage does not rerun commands or change their outcome: publication is retried three times, while PostgreSQL status and polling remain available.
+
+Eye retains accepted executions as managed background tasks, independent of the HTTP connection. The in-process scheduler and `/reconcile` also dispatch through this manager rather than waiting for a complete command. Graceful shutdown cancels commands, terminates their process trees, and marks interrupted runs/steps failed before closing the database. This is not a durable execution queue: an abrupt process/host crash does not resume arbitrary commands automatically. Review interrupted runs before retrying; manual POSTs create new runs, while schedule occurrence claims remain deduplicated.
 
 ## Execution behavior
 
@@ -163,20 +192,22 @@ For Browser Agent continuation, include an `id` UUID in the manual payload. The 
 - `POST/GET/PATCH/DELETE /api/scheduled/sub-agents`
 - `POST /api/scheduled/sub-agents/{sub_agent_id}/invoke` — queue a manual task and return its task ID.
 - `POST /api/notifications/webhook` — receive a completed manual task from a sub-agent.
-- `GET /api/notifications` — read recent ephemeral manual-task notifications.
-- `WS /api/notifications/ws` — stream completed manual tasks to the dashboard.
+- `GET /api/notifications` — read recent ephemeral sub-agent and workflow-run notifications.
+- `WS /api/notifications/ws` — stream completed/failed sub-agent tasks and workflow runs to the dashboard.
 - `POST/GET /api/scheduled/workflows`
 - `GET/PATCH/DELETE /api/scheduled/workflows/{workflow_id}`
 - `POST/GET/PATCH/DELETE /api/scheduled/schedules`
-- `POST /api/scheduled/run/{workflow_id}`
+- `POST /api/scheduled/run/{workflow_id}` — persist and accept a background execution (202), returning its run ID.
 - `GET /api/scheduled/runs`
+- `GET /api/scheduled/runs/{run_id}` — poll one run's persisted status.
 - `GET /api/scheduled/runs/{run_id}/steps`
 - `POST /api/scheduled/reconcile`
 - `GET /api/workers` — registered Celery workers (registration is not a live heartbeat).
-- `GET /api/workers/{worker_id}/dashboard` — worker details, all-time task metrics, and paginated task history; accepts `status` (`running`, `succeeded`, `failed`), `page` (default 1), and `page_size` (default 20, maximum 100). Metrics are independent of the history filter; success rate excludes running tasks and is null until a task completes.
-- `GET /api/workers/runs` — worker task state and results.
+- `GET /api/workers/{worker_id}/dashboard` — worker details, all-time task metrics, and paginated task history; accepts `status` (`running`, `succeeded`, `failed`, `skipped`), `page` (default 1), and `page_size` (default 20, maximum 100). Metrics are independent of the history filter; success rate excludes running tasks and is null until a task completes.
+- `GET /api/workers/runs` — worker task state and results, including explicit `company_name`, `job_title`, canonical `job_url`, `package` (INR pay or `"NA"`), and `platform`. The same fields are returned in the dashboard history and individual run response. The metadata migration backfills historical payload data and identifies historical Naukri URLs; unknown values remain `"NA"`.
 - `GET /api/workers/runs/{task_run_id}` — one worker task run.
 - `GET /api/workers/runs/{task_run_id}/logs` — ordered buffered step logs.
+- `GET /api/workers/runs/{task_run_id}/skip` — duplicate/red-flag reason, canonical job URL, details, and timestamp (null for non-skipped runs). Skips count separately from failures and are excluded from success-rate calculations. Application identity is atomically keyed by domain/path in the shared `job_applications` table; `worker_skips` retains skip observability.
 
 ## Tests
 
@@ -185,5 +216,6 @@ Unit tests run without PostgreSQL. Set `RUN_DATABASE_TESTS=1` after starting Pos
 ```powershell
 uv run pytest -q
 $env:RUN_DATABASE_TESTS = "1"
+$env:RUN_REDIS_TESTS = "1" # Includes isolated notification history/WebSocket integration
 uv run pytest -q
 ```

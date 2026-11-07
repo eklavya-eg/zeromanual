@@ -1,6 +1,6 @@
 from datetime import datetime, time
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
@@ -64,6 +64,18 @@ class SubAgentNotification(BaseModel):
     status: str
     payload: dict[str, Any]
     response: dict[str, Any] | None
+    error: str | None
+    created_at: datetime
+    completed_at: datetime
+
+
+class WorkflowRunNotification(BaseModel):
+    kind: Literal["workflow_run"] = "workflow_run"
+    run_id: str
+    workflow_id: str
+    workflow_name: str
+    attempt_count: int
+    status: Literal["succeeded", "failed"]
     error: str | None
     created_at: datetime
     completed_at: datetime
@@ -248,6 +260,10 @@ class WorkerTaskRunResponse(BaseModel):
     worker_id: str
     celery_task_id: str
     job_url: str
+    company_name: str = "NA"
+    job_title: str = "NA"
+    package: str = "NA"
+    platform: str = "NA"
     payload: dict[str, Any]
     result: dict[str, Any] | None
     status: str
@@ -265,7 +281,19 @@ class WorkerMetricsResponse(BaseModel):
     running: int
     succeeded: int
     failed: int
+    skipped: int
     success_rate: float | None
+
+
+class WorkerSkipResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    task_run_id: str
+    job_url: str
+    reason: str
+    details: str
+    created_at: datetime
 
 
 class WorkerDashboardResponse(BaseModel):

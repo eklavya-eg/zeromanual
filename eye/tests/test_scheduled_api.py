@@ -1,10 +1,12 @@
 from datetime import datetime
 from uuid import uuid4
 
-from app import execution
+from app import execution, scheduler
+from tests.test_command_workflows_api import MemoryNotifications, wait_for_run
 
 
 def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
+    monkeypatch.setattr(client.app.state.workflow_runs, "notifications", MemoryNotifications())
     invocations: list[tuple[str, dict[str, object]]] = []
 
     async def fake_invoke(url: str, payload: dict[str, object]) -> dict[str, object]:
@@ -75,6 +77,8 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
     assert schedule["windows_task_name"] is None
     assert schedule["registration_error"] is None
 
+    original_due = scheduler.due_occurrence
+    monkeypatch.setattr(scheduler, "due_occurrence", lambda item, now: original_due(item, now) if item.id == schedule["id"] else None)
     reconcile_response = client.post("/api/scheduled/reconcile")
     assert reconcile_response.status_code == 200
     triggered_run_ids = reconcile_response.json()["triggered_run_ids"]
@@ -85,9 +89,9 @@ def test_workflow_schedule_and_execution_api(client, monkeypatch) -> None:
     )
     first_run = client.post(run_url)
     duplicate_run = client.post(run_url)
-    assert first_run.status_code == 200
-    assert duplicate_run.status_code == 200
-    assert first_run.json()["status"] == "succeeded"
+    assert first_run.status_code == 202
+    assert duplicate_run.status_code == 202
+    assert wait_for_run(client, first_run.json()["id"])["status"] == "succeeded"
     assert first_run.json()["id"] in triggered_run_ids
     assert duplicate_run.json()["id"] == first_run.json()["id"]
     assert [payload for _, payload in invocations] == [

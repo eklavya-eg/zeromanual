@@ -12,18 +12,21 @@ from app.routes.notifications import router as notifications_router
 from app.routes.scheduled import router as scheduled_router
 from app.routes.workers import router as workers_router
 from app.scheduler import schedule_monitor
+from app.workflow_runs import WorkflowRunManager
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     await connect_database()
+    _app.state.workflow_runs = WorkflowRunManager(notification_store)
     stop_event = asyncio.Event()
-    monitor_task = asyncio.create_task(schedule_monitor(stop_event))
+    monitor_task = asyncio.create_task(schedule_monitor(stop_event, _app.state.workflow_runs))
     try:
         yield
     finally:
         stop_event.set()
         await monitor_task
+        await _app.state.workflow_runs.close()
         await notification_store.close()
         await disconnect_database()
 

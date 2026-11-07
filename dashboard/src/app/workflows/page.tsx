@@ -3,6 +3,7 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Bot, Braces, Check, CirclePlay, Eye, GitBranch, GripVertical, Layers3, Pencil, Plus, Search, Terminal, Trash2, Workflow as WorkflowIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { Field, inputClass, textareaClass } from "@/components/form-fields";
 import { QueryAlert } from "@/components/query-alert";
@@ -167,6 +168,7 @@ export default function WorkflowsPage() {
       <PageHeader eyebrow="Automation studio" title="Workflows" description="Arrange commands and sub-agents in one scheduled execution stack." action={<AddButton onClick={beginCreate}>Create workflow</AddButton>} />
       <QueryAlert show={unavailable} />
       {runWorkflow.isError && <p role="alert" className="mb-4 rounded-xl bg-red-500/10 p-3 text-xs">{runWorkflow.error.message} Open Runs for execution output.</p>}
+      {runWorkflow.isSuccess && <p role="status" className="mb-4 rounded-xl bg-emerald-500/10 p-3 text-xs">Run accepted: <Link href={`/runs/${runWorkflow.data.id}`} className="break-all font-mono font-semibold text-[var(--blue)] underline">{runWorkflow.data.id}</Link>. Execution continues in the background; completion or failure will appear in notifications.</p>}
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-md flex-1"><Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search workflows" className={`${inputClass} pl-11`} /></div>

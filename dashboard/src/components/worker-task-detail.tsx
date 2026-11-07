@@ -27,6 +27,11 @@ export function WorkerTaskDetail({ runId, onClose }: { runId: string; onClose: (
     queryFn: () => api.workers.logs(runId),
     refetchInterval: 10_000,
   });
+  const skipQuery = useQuery({
+    queryKey: ["worker-run-skip", runId],
+    queryFn: () => api.workers.skip(runId),
+    enabled: runQuery.data?.status === "skipped",
+  });
   const run = runQuery.data;
   const logs = logsQuery.data ?? [];
 
@@ -45,8 +50,16 @@ export function WorkerTaskDetail({ runId, onClose }: { runId: string; onClose: (
             <div><dt className="text-[var(--muted)]">Finished</dt><dd className="mt-1 font-semibold">{formatDateTime(run.finished_at)}</dd></div>
             <div><dt className="text-[var(--muted)]">Failed step</dt><dd className="mt-1 break-words font-mono">{run.step_failed ?? "None"}</dd></div>
           </dl>
-          <p className="break-all text-xs text-[var(--muted)]">Job: {run.job_url}</p>
+          <dl className="grid gap-4 rounded-2xl border border-[var(--line)] p-4 text-xs sm:grid-cols-2">
+            <div><dt className="text-[var(--muted)]">Company</dt><dd className="mt-1 break-words font-semibold">{run.company_name || "NA"}</dd></div>
+            <div><dt className="text-[var(--muted)]">Job title</dt><dd className="mt-1 break-words font-semibold">{run.job_title || "NA"}</dd></div>
+            <div><dt className="text-[var(--muted)]">Package (INR)</dt><dd className="mt-1 break-words font-semibold">{run.package || "NA"}</dd></div>
+            <div><dt className="text-[var(--muted)]">Platform</dt><dd className="mt-1 break-words font-semibold">{run.platform || "NA"}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-[var(--muted)]">Job URL</dt><dd className="mt-1 break-all">{run.job_url}</dd></div>
+          </dl>
           {run.error && <div role="alert" className="flex gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm"><TriangleAlert className="size-5 shrink-0 text-red-500" /><p className="break-words">{run.error}</p></div>}
+          {skipQuery.data && <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4"><p className="text-sm font-bold">Skipped · {skipQuery.data.reason}</p><p className="mt-2 text-sm">{skipQuery.data.details}</p><p className="mt-2 break-all font-mono text-xs text-[var(--muted)]">{skipQuery.data.job_url}</p></div>}
+          {skipQuery.isError && <ErrorState title="Skip reason unavailable" message={skipQuery.error.message} compact />}
           <div className="grid gap-5 lg:grid-cols-2">
             <JsonPanel title="Request payload" value={run.payload} />
             <JsonPanel title="Task result" value={run.result} />

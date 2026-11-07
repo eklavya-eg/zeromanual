@@ -36,6 +36,17 @@ class MemoryStore:
         if self.metadata.get(session_id, {}).get("owner") == owner:
             self.metadata.pop(session_id, None)
 
+    async def purge(self, session_id, owner):
+        current = self.metadata.get(session_id)
+        if current is not None and current["owner"] != owner:
+            return False
+        self.metadata.pop(session_id, None)
+        self.ttls.pop(session_id, None)
+        for task_id, record in list(self.instructions.items()):
+            if record.get("id") == session_id:
+                self.instructions.pop(task_id)
+        return True
+
     async def save_instruction(self, record, ttl):
         self.instructions[record["task_id"]] = deepcopy(record)
 

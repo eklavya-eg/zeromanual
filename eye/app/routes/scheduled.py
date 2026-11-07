@@ -2,7 +2,7 @@ import os
 from datetime import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from prisma import Json, Prisma
 from prisma.errors import UniqueViolationError
 from prisma.models import Schedule, SubAgent, Workflow, WorkflowRun
@@ -10,7 +10,7 @@ from redis.exceptions import RedisError
 
 from app.commands import authorize_command_edit
 from app.database import get_database
-from app.execution import WorkflowExecutionError, execute_workflow, invoke_sub_agent
+from app.execution import WorkflowExecutionError, invoke_sub_agent
 from app.notifications import notification_store
 from app.schedule_engine import due_occurrence
 from app.scheduler import reconcile_due_schedules
@@ -32,6 +32,7 @@ from app.schemas import (
     WorkflowUpdate,
 )
 from app.windows_scheduler import delete_windows_task, register_windows_task
+from app.workflow_runs import WorkflowRunManager
 
 router = APIRouter(prefix="/scheduled", tags=["scheduled"])
 
@@ -342,6 +343,8 @@ async def update_workflow(
     ):
         authorize_command_edit(command_token)
     if payload.steps is not None:
+        if await db.workflowrun.find_first(where={"workflow_id": workflow_id, "status": "running"}) is not None:
+            raise HTTPException(status_code=409, detail="Cannot replace steps while the workflow has an active run")
         await _validate_step_agents(db, payload.steps)
 
     changes = payload.model_dump(
@@ -400,6 +403,8 @@ async def delete_workflow(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
+    if await db.workflowrun.find_first(where={"workflow_id": workflow_id, "status": "running"}) is not None:
+        raise HTTPException(status_code=409, detail="Cannot delete a workflow with an active run")
     schedules = await db.schedule.find_many(where={"workflow_id": workflow_id})
     for schedule in schedules:
         await delete_windows_task(schedule.windows_task_name)
@@ -525,9 +530,11 @@ async def delete_schedule(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/run/{workflow_id}", response_model=RunResponse)
+@router.post("/run/{workflow_id}", response_model=RunResponse, status_code=status.HTTP_202_ACCEPTED)
 async def run_workflow(
     workflow_id: str,
+    request: Request,
+    response: Response,
     schedule_id: str | None = Query(default=None),
     db: Prisma = Depends(get_database),
 ) -> RunResponse:
@@ -540,11 +547,13 @@ async def run_workflow(
         if occurrence is None:
             raise HTTPException(status_code=409, detail="Schedule is not due now")
 
+    manager: WorkflowRunManager = request.app.state.workflow_runs
     try:
-        run = await execute_workflow(db, workflow_id, schedule_id, occurrence)
+        run = await manager.submit(db, workflow_id, schedule_id, occurrence)
     except WorkflowExecutionError as exc:
-        status_code = 404 if str(exc) == "Workflow not found" else 502
+        status_code = 404 if str(exc) == "Workflow not found" else 409
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    response.headers["Location"] = f"{request.scope.get('root_path', '')}/api/scheduled/runs/{run.id}"
     return _run_response(run)
 
 
@@ -559,6 +568,14 @@ async def list_runs(
         order={"created_at": "desc"},
     )
     return [_run_response(run) for run in runs]
+
+
+@router.get("/runs/{run_id}", response_model=RunResponse)
+async def get_run(run_id: str, db: Prisma = Depends(get_database)) -> RunResponse:
+    run = await db.workflowrun.find_unique(where={"id": run_id})
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return _run_response(run)
 
 
 @router.get("/runs/{run_id}/steps")
@@ -588,5 +605,5 @@ async def list_run_steps(
 
 
 @router.post("/reconcile")
-async def reconcile_schedules() -> dict[str, list[str]]:
-    return {"triggered_run_ids": await reconcile_due_schedules()}
+async def reconcile_schedules(request: Request) -> dict[str, list[str]]:
+    return {"triggered_run_ids": await reconcile_due_schedules(manager=request.app.state.workflow_runs)}

@@ -45,6 +45,7 @@ def test_dashboard_metrics_filters_pagination_and_worker_isolation(client) -> No
             "running": 1,
             "succeeded": 1,
             "failed": 1,
+            "skipped": 0,
             "success_rate": 50.0,
         }
         assert first["total"] == 3
@@ -54,6 +55,11 @@ def test_dashboard_metrics_filters_pagination_and_worker_isolation(client) -> No
             run["id"] for run in second["runs"]
         )
         assert all(run["worker_id"] == worker_id for run in first["runs"] + second["runs"])
+        assert all(
+            run[field] == "NA"
+            for run in first["runs"] + second["runs"]
+            for field in ["company_name", "job_title", "package", "platform"]
+        )
         assert filtered["total"] == 1
         assert filtered["runs"][0]["status"] == "failed"
         assert filtered["metrics"] == first["metrics"]
