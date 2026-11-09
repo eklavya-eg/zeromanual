@@ -142,14 +142,11 @@ class CrawlNaukri:
     def run(self) -> dict[str, Any]:
         session_id = str(uuid4())
         extraction = (
-            "Scroll to last to load all the available job listings or directly get from inspect or elements text (or any way suits you better) and return each observed company's name, job title, absolute job URL, and INR pay (NA if unavailable) in json format."
-            "Only include jobs not already applied to. If the section is unavailable, keep the job listing in the output."
+            "Scroll to last to load all the available job listings and get all job listings from inspect or element's text (or any way suits you better) and return each fetched company's name, job title, absolute job URL, and INR annual pay (NA if unavailable) in json format."
+            # "Only include jobs not already applied to. If the section is unavailable, keep the job listing in the output."
         )
-        tasks = [f"Open {self.config.naukri_url}. {extraction}"]
-        tasks.extend(
-            f"Open {self.config.naukri_url}. From the same Naukri job recommendations page, open {label!r} section from breadcrumb (if this section is not there in breadcrumb return empty json format). {extraction}"
-            for label in self.config.breadcrumb_visits[1:]
-        )
+        # tasks = [f"Open {self.config.naukri_url}. {extraction}"]
+        tasks = [f"Open {self.config.naukri_url}. From the same Naukri job recommendations page, open {label!r} section from breadcrumb, if this section is not there in breadcrumb return empty json format and close your task, but if this section is there navigate to it and {extraction}" for label in self.config.breadcrumb_visits[:]]
         results: list[str] = []
         for task in tasks:
             result = self.invoke_browser_agent(task=task, session_id=session_id)
