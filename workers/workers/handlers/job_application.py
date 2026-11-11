@@ -255,63 +255,66 @@ class JobApplicationWorker:
             "info", "fetch_job_description", "Browser session allocated", {"browser_session_id": session_id}
         )
         try:
-            job_description = self._step(
-                "fetch_job_description", lambda: self.fetch_job_description(payload, session_id)
-            )
-            tailoring = self._step(
-                "tailor_resume",
-                lambda: self.tailor_resume(
-                    job_description=job_description,
-                    profile=profile,
-                    resume=original,
-                    payload=payload,
-                ),
-            )
-            if tailoring.is_redflag:
-                self.observability.add(
-                    "info", "redflag", "Job skipped because it matches candidate redflags",
-                    {"reason": tailoring.reason},
-                )
-                return JobApplicationResult(
-                    task_run_id=task_run_id,
-                    status="skipped",
-                    skip_reason="redflag",
-                    reason=tailoring.reason,
-                    browser_session_id=session_id,
-                )
-            selected = self._step(
-                "select_resume",
-                lambda: self.select_resume(original, tailoring),
-            )
+            # job_description = self._step(
+            #     "fetch_job_description", lambda: self.fetch_job_description(payload, session_id)
+            # )
+            # tailoring = self._step(
+            #     "tailor_resume",
+            #     lambda: self.tailor_resume(
+            #         job_description=job_description,
+            #         profile=profile,
+            #         resume=original,
+            #         payload=payload,
+            #     ),
+            # )
+            # if tailoring.is_redflag:
+            #     self.observability.add(
+            #         "info", "redflag", "Job skipped because it matches candidate redflags",
+            #         {"reason": tailoring.reason},
+            #     )
+            #     return JobApplicationResult(
+            #         task_run_id=task_run_id,
+            #         status="skipped",
+            #         skip_reason="redflag",
+            #         reason=tailoring.reason,
+            #         browser_session_id=session_id,
+            #     )
+            # selected = self._step(
+            #     "select_resume",
+            #     lambda: self.select_resume(original, tailoring),
+            # )
             resume_id = str(uuid4())
-            self.observability.add(
-                "info", "render_resume", "Resume UUID allocated", {"resume_id": resume_id}
-            )
-            rendered_path = self._step(
-                "render_resume",
-                lambda: self.render_resume(selected, task_run_id, resume_id),
-            )
+            # self.observability.add(
+            #     "info", "render_resume", "Resume UUID allocated", {"resume_id": resume_id}
+            # )
+            # rendered_path = self._step(
+            #     "render_resume",
+            #     lambda: self.render_resume(selected, task_run_id, resume_id),
+            # )
+            # closing specific resume building process
+            # original_path = Path("Z:/resume.pdf")
+
             browser_task = self._step(
                 "build_browser_task",
                 lambda: self.build_browser_task(
                     payload=payload,
                     profile=profile,
-                    resume_path=rendered_path,
+                    resume_path=resume_path,
                     resume_id=resume_id,
                 ),
             )
             browser_result = self._step(
                 "apply_to_job",
                 lambda: self.invoke_browser_agent(
-                    task=browser_task, payload=payload, session_id=session_id, resume_path=rendered_path
+                    task=browser_task, payload=payload, session_id=session_id, resume_path=resume_path
                 ),
             )
             return JobApplicationResult(
                 task_run_id=task_run_id,
                 status="succeeded",
-                resume_updated=tailoring.update_required,
+                resume_updated=False,  # Assuming no tailoring was done in this simplified version
                 resume_id=resume_id,
-                resume_path=str(rendered_path),
+                resume_path=str(resume_path),
                 browser_session_id=session_id,
                 browser_result=browser_result,
             )

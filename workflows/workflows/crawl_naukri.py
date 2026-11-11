@@ -158,6 +158,8 @@ class CrawlNaukri:
                 raise ValueError("Browser agent completed without crawl output")
             results.append(text)
         jobs = self.extract_jobs(results)
+        job_title_blacklist = {"student", "train", "java", "sr. ", "sr ", "senior", "trainee", "fullstack", "frontend", "ui"}
+        jobs = [job for job in jobs if not any(black in job.job_title.lower() for black in job_title_blacklist)] # filtering out jobs with blacklisted keywords in job title
         published = self.enqueue_jobs(jobs)
         return {"session_id": session_id, "jobs_found": len(jobs), "jobs_queued": len(published), "tasks": published}
 
