@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import httpx
 from celery import Celery
 from openai import APIConnectionError, APITimeoutError, RateLimitError
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, HttpUrl, WithJsonSchema, field_validator
 
 from workflows.settings import RetryPolicy, Settings, load_settings
 from workflows.utils.retry import retry_call
@@ -39,7 +39,7 @@ class CrawledJobData(BaseModel):
 
     company_name: str = Field(min_length=1, max_length=500)
     job_title: str = Field(min_length=1, max_length=500)
-    job_url: HttpUrl
+    job_url: Annotated[HttpUrl, WithJsonSchema({"type": "string"})]
     package: str = Field(default="NA", min_length=1, max_length=500)
 
     @field_validator("package", mode="before")
@@ -148,6 +148,8 @@ class CrawlNaukri:
         # tasks = [f"Open {self.config.naukri_url}. {extraction}"]
         tasks = [f"Open {self.config.naukri_url}. From the same Naukri job recommendations page, open {label!r} section from breadcrumb, if this section is not there in breadcrumb return empty json format and close your task, but if this section is there navigate to it and {extraction}" for label in self.config.breadcrumb_visits[:]]
         results: list[str] = []
+        all_jobs: list[CrawledJobData] = []
+        all_published: list[dict[str, str]] = []
         for task in tasks:
             result = self.invoke_browser_agent(task=task, session_id=session_id)
             text = result.get("result")
@@ -157,11 +159,13 @@ class CrawlNaukri:
             if not isinstance(text, str) or not text.strip():
                 raise ValueError("Browser agent completed without crawl output")
             results.append(text)
-        jobs = self.extract_jobs(results)
-        job_title_blacklist = {"student", "train", "java", "sr. ", "sr ", "senior", "trainee", "fullstack", "frontend", "ui"}
-        jobs = [job for job in jobs if not any(black in job.job_title.lower() for black in job_title_blacklist)] # filtering out jobs with blacklisted keywords in job title
-        published = self.enqueue_jobs(jobs)
-        return {"session_id": session_id, "jobs_found": len(jobs), "jobs_queued": len(published), "tasks": published}
+            jobs = self.extract_jobs([text])
+            job_title_blacklist = {"student", "train", "java", "sr. ", "sr ", "senior", "trainee", "fullstack", "frontend", "ui", "data science", "data engineer", "data analyst", "data scientist", "data architect", "analyst", "full stack", "full-stack", "ui/ux", "business analyst", "bi", "tableau", "bi developer", "support", "front end", "lead"}
+            jobs = [job for job in jobs if not any(black in job.job_title.lower() for black in job_title_blacklist)] # filtering out jobs with blacklisted keywords in job title
+            all_jobs.extend(jobs)
+            published = self.enqueue_jobs(jobs)
+            all_published.extend(published)
+        return {"session_id": session_id, "jobs_found": len(all_jobs), "jobs_queued": len(all_published), "tasks": all_published}
 
 
     def invoke_browser_agent(

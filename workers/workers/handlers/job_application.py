@@ -145,7 +145,7 @@ class JobApplicationWorker:
             "fields. Upload the supplied PDF only when the application requires a separate "
             "resume or offers an option to upload a different resume. Resume PDF path is given below."
             "If a required answer is unavailable, fill it accordingly with the candidate's profile."
-            "Complete and submit the application, then return the final status and any confirmation reference. \n"
+            "Complete and submit the application, then return the final status and any confirmation reference. You can \n"
             f"JOB TITLE: {payload.job_title}\n"
             f"COMPANY: {payload.company_name}\n"
             f"JOB URL: {payload.job_url}\n\n"

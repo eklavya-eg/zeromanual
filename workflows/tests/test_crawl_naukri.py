@@ -239,6 +239,12 @@ def test_strict_extraction_schema_requires_package_without_unsupported_defaults(
     assert set(listing["required"]) == {"company_name", "job_title", "job_url", "package"}
     assert listing["additionalProperties"] is False
     assert "default" not in listing["properties"]["package"]
+    assert listing["properties"]["job_url"] == {"title": "Job Url", "type": "string"}
+
+
+def test_job_url_is_still_validated_after_schema_uses_plain_string():
+    with pytest.raises(ValidationError):
+        CrawledJobsResponse.model_validate({"jobs": [{**job(), "job_url": "not a URL"}]})
 
 
 def test_missing_package_defaults_to_na_without_dropping_listing():
