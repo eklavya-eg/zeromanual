@@ -1,1 +1,6 @@
 .env
+
+ignore.txt
+
+# Logs folder for service output (includes pids.json)
+logs/
