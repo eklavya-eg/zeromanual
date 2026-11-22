@@ -16,6 +16,7 @@ from app.llm import LlmConfigurationError, create_llm
 from app.schemas import InvokeAcceptedResponse, InvokePayload, InvokeResponse, SwitchCallback
 from app.session_store import SessionStore
 from app.sessions import BrowserSessionManager, SessionCapacityError, SessionConflictError
+from app.browser_context import browser_context
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ async def execute(payload: InvokePayload, browser: Browser | None = None) -> Inv
             ),
             user_data_dir=os.getenv("BROWSER_USER_DATA_DIR", r"D:\BroserUse\User Data"),
             profile_directory=os.getenv("BROWSER_PROFILE_DIRECTORY", "Profile 1"),
+            extend_system_message=browser_context
         )
     agent = Agent(
         task=payload.task, llm=llm, browser=browser, available_file_paths=payload.available_file_paths

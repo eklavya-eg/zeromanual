@@ -1,4 +1,4 @@
-context = """
+browser_context = """
 # Browser Environment
 
 ## Session context
