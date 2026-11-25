@@ -43,7 +43,7 @@ def create_llm(
     if not api_key:
         raise LlmConfigurationError("OPENROUTER_API_KEY is required")
     return (
-        ChatOpenRouter(model=selected_model, api_key=api_key, max_completion_tokens=100000),
+        ChatOpenRouter(model=selected_model, api_key=api_key),
         selected_provider,
         selected_model,
     )
