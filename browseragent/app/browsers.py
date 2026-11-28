@@ -6,6 +6,7 @@ from pathlib import Path
 from contextlib import suppress
 
 from browser_use import Browser
+from app.browser_context import browser_context
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -57,6 +58,7 @@ class SessionBrowsers:
                 user_data_dir=str(profile),
                 profile_directory=os.getenv("BROWSER_PROFILE_DIRECTORY", "Profile 1"),
                 keep_alive=True,
+                extend_system_message=browser_context
             )
             await browser.start()
             return browser
